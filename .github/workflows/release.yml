@@ -26,6 +26,9 @@ on:
     branches: [main]
     paths:
       - "charts/grdb/Chart.yaml"
+  # Manual re-run without a version-bump commit — e.g. re-publishing
+  # after fixing this workflow itself, as happened cutting 0.1.1/0.1.2.
+  workflow_dispatch:
 
 permissions:
   contents: write
