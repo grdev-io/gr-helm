@@ -136,8 +136,8 @@ at something other than real Postgres, verify this before raising
 ## Verifying a render
 
 ```sh
-helm lint .
-helm template . --set image.tag=v0.1.0 > /tmp/rendered.yaml
+helm lint charts/grdb
+helm template charts/grdb --set image.tag=v0.1.0 > /tmp/rendered.yaml
 kubectl apply --dry-run=client -f /tmp/rendered.yaml   # optional, needs a reachable cluster/schema
 ```
 

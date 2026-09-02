@@ -2,10 +2,18 @@ name: Release chart
 
 # Publishes this chart to GitHub Pages via the standard
 # helm/chart-releaser-action flow (README.md's "Option A"): on every push
-# to main that bumps Chart.yaml's version, it packages the chart, tags a
-# GitHub Release with the chart archive attached, and regenerates
-# index.yaml on the gh-pages branch so `helm repo add`/`helm repo update`
-# picks it up.
+# to main that bumps charts/grdb/Chart.yaml's version, it packages the
+# chart, tags a GitHub Release with the chart archive attached, and
+# regenerates index.yaml on the gh-pages branch so `helm repo
+# add`/`helm repo update` picks it up.
+#
+# The chart lives at charts/grdb/ (not the repo root) because
+# chart-releaser-action's default charts_dir is "charts" — it scans
+# charts/*/Chart.yaml for changed charts between the last release tag
+# and HEAD; a root-level Chart.yaml is invisible to that scan (this bit
+# the first release attempt: "Nothing to do. No chart changes detected."
+# despite a real version bump, because the action was never told where
+# to look and defaulted to a directory that didn't exist).
 #
 # One-time repo setup this workflow assumes (not automated here):
 #   - An orphan `gh-pages` branch exists (chart-releaser-action can create
@@ -17,7 +25,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "Chart.yaml"
+      - "charts/grdb/Chart.yaml"
 
 permissions:
   contents: write
@@ -40,7 +48,7 @@ jobs:
         uses: azure/setup-helm@v4
 
       - name: Lint chart
-        run: helm lint .
+        run: helm lint charts/grdb
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
