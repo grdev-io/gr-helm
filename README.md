@@ -104,11 +104,34 @@ A few notable ones:
   `linux/amd64` works fine too if you build/push that arch yourself.
   This chart never hardcodes an architecture.
 
-Migrations (`migrations.enabled`, default `true`) run as a Helm
-`pre-install,pre-upgrade` hook `Job` using the bundled `atlas` CLI against
-the `*.sql` files under `files/migrations/` in this repo — copied
-verbatim from grdb-v2 and versioned with this chart, so every chart
-release always applies exactly the migration set it ships with.
+Migrations run as a `db-migrate` initContainer on the Deployment, against
+the same published image and tag as the main container — the image
+bakes in both the `atlas` CLI and `migrations/` (grdb-v2's own
+Dockerfile), so there is no second image or ConfigMap for this chart to
+keep in sync with the working tree. Migrating is implicit in every
+rollout; there is no separate step to remember or a `migrations.enabled`
+toggle to check.
+
+**Concurrency and `replicaCount`.** `atlas migrate apply` (`--lock-
+timeout 60s` in this chart) takes a Postgres advisory lock (default
+name `atlas_migrate_execute`) before applying and waits for a concurrent
+holder rather than racing it, so two pods' `db-migrate` initContainers —
+during a rolling update (the default `maxSurge` briefly runs two pods
+even at `replicaCount: 1`), or at any `replicaCount` you set above 1 —
+serialize: one applies every pending migration, the other reports "No
+migration files to execute" and starts its own server container right
+after. This is verified, not assumed: three `atlas migrate apply`
+invocations launched simultaneously against one fresh, unmigrated
+Postgres database applied cleanly against grdb-v2's own published image
+(atlas 1.3.0) — exactly one performed every statement, the revisions
+table held exactly one row per migration version afterward, no
+duplicates or corruption. This depends specifically on the target
+supporting Postgres's advisory-lock functions — true for real Postgres
+and most managed Postgres (Neon, RDS, Cloud SQL), but not universal
+across every Postgres-wire-compatible service (Atlas's own docs name
+Aurora DSQL as one that does not support them). If `database.url` points
+at something other than real Postgres, verify this before raising
+`replicaCount` above 1.
 
 ## Verifying a render
 

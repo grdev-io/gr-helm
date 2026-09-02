@@ -62,6 +62,83 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # Migrations run as an initContainer against the SAME image and tag
+      # as the main container — the published image bakes in the atlas
+      # CLI and migrations/ (see grdb-v2's own Dockerfile runtime stage)
+      # precisely so this needs no second image and no ConfigMap kept in
+      # sync with the working tree. This replaces a separate migrate
+      # Job/ConfigMap/atlas image: migrating is now implicit in every
+      # rollout, never a step an operator can forget to run before the
+      # new image actually needs its own schema.
+      #
+      # Concurrency: `atlas migrate apply` takes a Postgres advisory lock
+      # (default name `atlas_migrate_execute`) before applying and waits
+      # up to --lock-timeout for a concurrent holder, so two pods' own
+      # initContainers racing — during a rolling update (the default
+      # maxSurge briefly runs two pods even at replicaCount: 1), or at
+      # any replicaCount a customer sets above 1 — serialize rather than
+      # race: one applies, the other waits, then re-checks and finds
+      # nothing pending. Verified empirically against grdb-v2's own
+      # published image (atlas 1.3.0 pinned in its Dockerfile): three
+      # `atlas migrate apply` invocations launched simultaneously against
+      # one fresh, unmigrated Postgres database applied cleanly — exactly
+      # one performed every pending statement, the other two reported "No
+      # migration files to execute", and the revisions table held exactly
+      # one row per migration version afterward. This depends
+      # specifically on the target supporting Postgres's advisory-lock
+      # functions — true for real Postgres and most managed Postgres
+      # (Neon, RDS, Cloud SQL) but not universal across every Postgres-
+      # wire-compatible service (Atlas's own docs name Aurora DSQL as one
+      # that does not support them). A customer pointing values.database
+      # at something other than real Postgres should verify this before
+      # raising replicaCount above 1.
+      initContainers:
+        - name: db-migrate
+          image: {{ include "grdb.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/atlas"]
+          args:
+            - migrate
+            - apply
+            - --dir
+            - file:///migrations
+            - --url
+            - $(DATABASE_URL)
+            - --revisions-schema
+            - public
+            # Default --lock-timeout is 10s; a slow migration under load,
+            # or a lock briefly held by another pod's own long-running
+            # apply, should fail loud after a real wait rather than a
+            # hair-trigger one.
+            - --lock-timeout
+            - 60s
+          env:
+            # $(DATABASE_URL) in args must come from an explicit `env`
+            # entry, not `envFrom` — Kubernetes' own command/args variable
+            # expansion is documented to resolve from either, but several
+            # long-standing upstream reports (kubernetes/kubernetes#42583,
+            # #46861, #48361, #101137) show it silently failing to expand
+            # from envFrom-sourced Secret keys on some versions; pulling
+            # the key explicitly is the portable form and costs one field.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "grdb.secretName" . }}
+                  key: DATABASE_URL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
       containers:
         - name: grdb-platform
           image: {{ include "grdb.image" . }}

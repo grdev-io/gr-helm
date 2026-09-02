@@ -162,18 +162,6 @@ extraEnv: []
 #   - name: CLUSTER_CONTEXT
 #     value: my-context
 
-migrations:
-  # -- Runs `atlas migrate apply` against migrations/*.sql (bundled in
-  # this chart under files/migrations/, copied verbatim from grdb-v2 and
-  # versioned with it) as a Helm pre-install/pre-upgrade hook Job, before
-  # the Deployment starts. Disable only if your own pipeline runs
-  # migrations out of band.
-  enabled: true
-  image:
-    repository: arigaio/atlas
-    tag: latest
-    pullPolicy: IfNotPresent
-
 # -- Set to reuse a Secret you manage yourself (any of your own
 # provisioning: sealed-secrets, External Secrets Operator, a plain
 # `kubectl create secret`, ...) instead of the one this chart can
