@@ -1,0 +1,25 @@
+{{- if .Values.migrations.enabled }}
+# The migrations/ directory itself, bundled with this chart under
+# files/migrations/ (copied verbatim from grdb-v2's own migrations/ and
+# versioned with this chart release) rather than baked into a second
+# published image — at well under the 1MiB ConfigMap limit, and this way
+# a migration run always applies exactly the migration set this chart
+# version ships, with no second image to keep in sync with image.tag.
+#
+# A hook resource (not a plain chart resource): it must exist before the
+# migrate Job below runs, and hook resources in the same phase are
+# guaranteed ordered by ascending hook-weight.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "grdb.fullname" . }}-migrations
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+  {{- (.Files.Glob "files/migrations/*").AsConfig | nindent 2 }}
+{{- end }}

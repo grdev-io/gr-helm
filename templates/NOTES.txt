@@ -1,0 +1,47 @@
+grdb ({{ .Chart.AppVersion }}) installed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+{{- if ne .Release.Namespace "grdb-platform" }}
+
+⚠️  WARNING: this release is installed into "{{ .Release.Namespace }}", not
+"grdb-platform". The platform's cluster write-gate (ClusterGuard) looks
+for a ConfigMap named grdb-platform-marker in a namespace literally named
+"grdb-platform" — both are compiled-in Go constants, not configurable.
+Every write (creating an Instance, a Tenant namespace, ...) will be
+refused until that ConfigMap exists there. Either:
+  - reinstall into "grdb-platform" (recommended):
+      helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}
+      helm install {{ .Release.Name }} gr-helm/grdb -n grdb-platform --create-namespace
+  - or seed the grdb-platform-marker ConfigMap in "grdb-platform" on the
+    target cluster yourself, if this plane's KUBECONFIG_PATH/
+    CLUSTER_CONTEXT point at a different cluster than the one it runs on.
+{{- end }}
+
+1. Check the platform came up healthy:
+
+   kubectl -n {{ .Release.Namespace }} get pods -l "{{ include "grdb.selectorLabels" . }}"
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "grdb.fullname" . }} 8080:{{ .Values.service.port }}
+
+   Then open http://localhost:8080/healthz — it answers 200 once both
+   Postgres and Redis are reachable.
+
+{{- if .Values.ingress.enabled }}
+
+2. Ingress is enabled at: http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}{{ .Values.ingress.path }}
+{{- else }}
+
+2. Ingress is disabled (ingress.enabled=false). Reach the console via the
+   port-forward above, or set ingress.enabled=true with ingress.host/
+   ingress.className/ingress.annotations for your own controller.
+{{- end }}
+
+{{- if and (not .Values.licensing.licenseActivationKey) (not .Values.licensing.licenseFile) }}
+
+3. No licensing.licenseActivationKey or licensing.licenseFile is set: the
+   plane starts Frozen (every read still works; create/scale mutations
+   are refused) until you activate a license from the console, or set
+   one of these two values and upgrade.
+{{- end }}
+
+Docs: https://github.com/grdev-io/gr-helm#readme
+Found an install problem? File it at https://github.com/grdev-io/gr-helm/issues
+(this chart's own public tracker — separate from grdb-v2's internal one).

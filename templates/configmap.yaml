@@ -1,0 +1,56 @@
+# Non-secret runtime configuration — every value here is safe to read
+# via `kubectl describe configmap`. Credentials live in the Secret
+# instead (templates/secret.yaml / existingSecret): see that template's
+# own comment for exactly which keys it carries.
+#
+# KUBECONFIG_PATH / CLUSTER_CONTEXT are intentionally absent: leaving
+# both unset is exactly what makes kubernetes.NewConfig prefer
+# rest.InClusterConfig() — what a Helm-installed plane wants. Add them
+# via values.extraEnv only if this plane's own cluster genuinely differs
+# from the one it should write to.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "grdb.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.config.port | quote }}
+  SMTP_PORT: {{ .Values.smtp.port | quote }}
+  SMTP_FROM_NAME: {{ .Values.smtp.fromName | quote }}
+  SMTP_HELO_HOST: {{ .Values.smtp.heloHost | quote }}
+  SMTP_IGNORE_TLS: {{ .Values.smtp.ignoreTLS | quote }}
+  SMTP_REQUIRE_TLS: {{ .Values.smtp.requireTLS | quote }}
+  SMTP_TLS_REJECT_UNAUTHORIZED: {{ .Values.smtp.tlsRejectUnauthorized | quote }}
+  {{- if .Values.smtp.host }}
+  SMTP_HOST: {{ .Values.smtp.host | quote }}
+  {{- end }}
+  {{- if .Values.smtp.fromAddress }}
+  SMTP_FROM_ADDRESS: {{ .Values.smtp.fromAddress | quote }}
+  {{- end }}
+  {{- if .Values.appPublicURL }}
+  APP_PUBLIC_URL: {{ .Values.appPublicURL | quote }}
+  {{- end }}
+  {{- if .Values.oauth.github.clientId }}
+  GITHUB_CLIENT_ID: {{ .Values.oauth.github.clientId | quote }}
+  {{- end }}
+  {{- if .Values.oauth.google.clientId }}
+  GOOGLE_CLIENT_ID: {{ .Values.oauth.google.clientId | quote }}
+  {{- end }}
+  {{- if .Values.aws.region }}
+  AWS_REGION: {{ .Values.aws.region | quote }}
+  {{- end }}
+  {{- if .Values.aws.profile }}
+  AWS_PROFILE: {{ .Values.aws.profile | quote }}
+  {{- end }}
+  OPERATOR_CHART_VERSION_POSTGRES: {{ .Values.operatorChartVersions.postgres | quote }}
+  OPERATOR_CHART_VERSION_REDIS: {{ .Values.operatorChartVersions.redis | quote }}
+  OPERATOR_CHART_VERSION_DRAGONFLY: {{ .Values.operatorChartVersions.dragonfly | quote }}
+  OPERATOR_CHART_VERSION_MONGODB: {{ .Values.operatorChartVersions.mongodb | quote }}
+  OPERATOR_CHART_VERSION_CLICKHOUSE: {{ .Values.operatorChartVersions.clickhouse | quote }}
+  OPERATOR_CHART_VERSION_ELASTIC: {{ .Values.operatorChartVersions.elastic | quote }}
+  {{- if .Values.licensing.licenseFile }}
+  LICENSE_FILE: {{ .Values.licensing.licenseFile | quote }}
+  {{- end }}
+  LICENSING_ENDPOINT: {{ .Values.licensing.licensingEndpoint | quote }}

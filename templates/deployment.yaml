@@ -1,0 +1,123 @@
+# The platform workload. No nodeSelector/affinity/toleration by default:
+# it runs on the cluster's existing general-purpose nodes — pinning it
+# elsewhere is a choice an operator makes explicitly via the values
+# below, never a default that would make a fresh install launch new
+# capacity just to run the platform itself.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "grdb.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "grdb.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "grdb.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "grdb.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # No cluster-admin, no host access: the platform's own identity is
+      # exactly the RBAC in templates/rbac.yaml, nothing borrowed from
+      # the node.
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        # The published image (gcr.io/distroless/static-debian12:nonroot
+        # base) sets USER to the symbolic "nonroot" (UID 65532), not a
+        # numeric one — without an explicit numeric runAsUser/runAsGroup
+        # here, the kubelet cannot verify runAsNonRoot against a
+        # non-numeric image USER and refuses to start the container at
+        # all. 65532 is that same UID/GID, spelled out instead of relied
+        # on implicitly.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: grdb-platform
+          image: {{ include "grdb.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "grdb.configMapName" . }}
+            - secretRef:
+                name: {{ include "grdb.secretName" . }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # /healthz answers 200 only when both Postgres and Redis are
+          # reachable — exactly the two dependencies that matter for both
+          # probes, so a genuinely broken deployment is taken out of
+          # Service traffic (readiness) and eventually restarted if it
+          # never recovers (liveness), rather than kept serving a console
+          # that cannot do anything.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      # readOnlyRootFilesystem above needs a writable /tmp for anything
+      # in the dependency graph that reaches for os.TempDir() (nothing in
+      # the platform's own code writes to disk — Postgres and Redis are
+      # the only stores — this is a defensive floor, not a feature).
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

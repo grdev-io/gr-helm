@@ -1,0 +1,285 @@
+{{- if .Values.rbac.create }}
+# Least-privilege RBAC for the platform's ServiceAccount. Every rule
+# below is commented with the exact feature it serves — there is no rule
+# here for a capability nothing the platform actually calls.
+#
+# Namespaces, Secrets, the six database-operator custom resources, and
+# the workload-status resources (statefulsets, pods) are all necessarily
+# cluster-scoped grants even though every real object lives in a Tenant
+# namespace: Tenant namespaces are created dynamically by the platform
+# itself and are not known at RBAC-authoring time, so a namespaced Role
+# naming them in advance is not possible. This is the standard shape for
+# a namespace-per-tenant controller (cert-manager, external-dns, etc. all
+# do the same for their own dynamic-namespace resources).
+#
+# Server-Side Apply needs "create" (first apply of a not-yet-existing
+# object) and "patch" (every apply after — SSA is always sent as a PATCH;
+# "create" authorizes the case where that PATCH would create the object)
+# — never "update".
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "grdb.fullname" . }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+rules:
+  # Tenant namespace reserve/release: check pre-existing ownership before
+  # applying (get), Server-Side Apply the Namespace itself (create+patch),
+  # remove it on Tenant delete (delete).
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "create", "patch", "delete"]
+
+  # Connection Secret reads (SecretReader.Get — get); platform-issued
+  # credentials for engines whose operator issues none: Instance create
+  # Server-Side Applies a Secret under the platform's own field manager
+  # before the CR references it (create+patch), Instance delete removes
+  # it (delete). Every reference is always by exact namespace/name — no
+  # "list"/"watch" is ever needed on Secrets.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "patch", "delete"]
+
+  # Storage reclaim on Instance delete: some operators (e.g. MongoDB's
+  # PSMDB, dragonfly-operator) retain their PersistentVolumeClaims by
+  # design, so the platform deletes the retained ones itself, or the
+  # underlying volume bills forever with nothing naming it. Retained
+  # claim names carry the operator's own InstanceIdentity labels (list)
+  # and are then removed by name (delete) — no get (the reclaimer never
+  # reads a claim's contents) and no create/patch (the platform never
+  # makes a volume, only the operator does).
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["list", "delete"]
+
+  # Postgres Engine Adapter: the CloudNativePG operator's Cluster custom
+  # resource. Instance create/update Server-Side Applies it
+  # (create+patch), the status source watches it cluster-wide for
+  # Ready/Provisioning/Degraded (list+watch), and Instance delete removes
+  # it (delete).
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+
+  # MongoDB Engine Adapter: the Percona Server for MongoDB operator's
+  # PerconaServerMongoDB custom resource. Same shape as postgres's rule
+  # above.
+  - apiGroups: ["psmdb.percona.com"]
+    resources: ["perconaservermongodbs"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+
+  # ClickHouse Engine Adapter: the Altinity operator's
+  # ClickHouseInstallation custom resource.
+  - apiGroups: ["clickhouse.altinity.com"]
+    resources: ["clickhouseinstallations"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+
+  # Elasticsearch Engine Adapter: the ECK operator's Elasticsearch custom
+  # resource.
+  - apiGroups: ["elasticsearch.k8s.elastic.co"]
+    resources: ["elasticsearches"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+
+  # Redis Engine Adapter: the OT-Container-Kit operator's standalone
+  # Redis custom resource. Its status source reads the owned StatefulSet
+  # instead of this CR (see the apps/statefulsets rule below), so this
+  # rule needs no get/list/watch at all.
+  - apiGroups: ["redis.redis.opstreelabs.in"]
+    resources: ["redis"]
+    verbs: ["create", "patch", "delete"]
+
+  # Dragonfly Engine Adapter: the dragonfly-operator's Dragonfly custom
+  # resource. Same status-from-StatefulSet shape as redis's rule above.
+  - apiGroups: ["dragonflydb.io"]
+    resources: ["dragonflies"]
+    verbs: ["create", "patch", "delete"]
+
+  # Workload-backed status: some operators (redis, dragonfly) publish no
+  # meaningful CR status, so their StatusSource reads the StatefulSet
+  # each operator owns instead. Cluster-wide list+watch informer, same
+  # shape as the CR-based watches above.
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["get", "list", "watch"]
+
+  # The StatefulSet's own status has no per-pod detail — no field says
+  # "this pod is crash-looping" — so the same workload-backed status
+  # strategy also reads each owned Pod's containerStatuses for that, and
+  # node-occupancy reporting reads Pods filtered per-Node to name which
+  # Instance/Tenant sits on each machine.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+  # Nodes, cluster-wide: the platform's Compute Profile page lists the
+  # machines provisioned for one profile. The grant is necessarily
+  # cluster-wide because Kubernetes RBAC cannot scope a read by label and
+  # autoscaler-launched node names are typically IP-derived and
+  # ephemeral, so resourceNames cannot enumerate them either. What
+  # actually keeps every read inside the platform's own capacity is the
+  # label selector every List call carries, built from a Compute Profile
+  # row the platform itself wrote — never from a value a caller supplies
+  # raw.
+  {{- if .Values.rbac.karpenterIntegration.enabled }}
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  {{- end }}
+
+  {{- if .Values.rbac.argocdIntegration.enabled }}
+  # Installing an operator Server-Side Applies an ArgoCD Application
+  # under the platform's own field manager (create+patch) and reads its
+  # sync/health status back by Engine id (get+list) — never "update":
+  # SSA is always sent as PATCH, and the sync-trigger is a plain merge
+  # patch, covered by the same verb.
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list", "create", "patch"]
+  {{- end }}
+
+  {{- if .Values.rbac.karpenterIntegration.enabled }}
+  # Karpenter NodePools: readiness lists them for the operator-install
+  # picker (get+list, no watch — a plain per-request List) and Compute
+  # Profile materializes/releases exactly one via Server-Side Apply under
+  # the platform's own field manager (create+patch+delete).
+  - apiGroups: ["karpenter.sh"]
+    resources: ["nodepools"]
+    verbs: ["get", "list", "create", "patch", "delete"]
+
+  # EC2NodeClasses: read-only for both readiness's Karpenter-prerequisite
+  # check (at least one must exist) and Compute Profile's node-class
+  # reference validation — never created here; these belong to the
+  # cluster's own platform team, exactly like the ArgoCD install itself.
+  - apiGroups: ["karpenter.k8s.aws"]
+    resources: ["ec2nodeclasses"]
+    verbs: ["get", "list"]
+  {{- end }}
+---
+# The one ConfigMap the platform ever reads before writing anything else:
+# pinned by exact name via resourceNames, in its own namespaced Role
+# rather than folded into the ClusterRole above — a cluster-wide "get
+# configmaps" grant would be wildly broader than the single object
+# ClusterGuard.Verify actually checks. See platformMarker in values.yaml
+# and templates/marker-configmap.yaml for why this Role's namespace
+# matters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "grdb.fullname" . }}-marker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["grdb-platform-marker"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "grdb.fullname" . }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "grdb.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "grdb.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "grdb.fullname" . }}-marker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "grdb.fullname" . }}-marker
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "grdb.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- if .Values.rbac.argocdIntegration.enabled }}
+---
+# Readiness's ArgoCD-healthy check: argocd-server (the API/UI Deployment)
+# and argocd-application-controller (the reconciler StatefulSet) by exact
+# name — no argocd-repo-server read, no list, no access to any other
+# object in the ArgoCD namespace (Applications are already covered by the
+# ClusterRole above; this Role is deliberately scoped to only the two
+# workloads readiness actually Gets).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "grdb.fullname" . }}-argocd-health
+  namespace: {{ .Values.rbac.argocdIntegration.namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["argocd-server"]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    resourceNames: ["argocd-application-controller"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "grdb.fullname" . }}-argocd-health
+  namespace: {{ .Values.rbac.argocdIntegration.namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "grdb.fullname" . }}-argocd-health
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "grdb.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.rbac.karpenterIntegration.enabled }}
+---
+# Readiness's Karpenter-healthy check: the karpenter controller
+# Deployment by exact name. kube-system also hosts CNI/CSI/CoreDNS and
+# other cluster-critical workloads this platform has no business reading,
+# so this is a Role scoped to exactly one object, not a cluster-wide
+# Deployment grant.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "grdb.fullname" . }}-karpenter-health
+  namespace: {{ .Values.rbac.karpenterIntegration.namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["karpenter"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "grdb.fullname" . }}-karpenter-health
+  namespace: {{ .Values.rbac.karpenterIntegration.namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "grdb.fullname" . }}-karpenter-health
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "grdb.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

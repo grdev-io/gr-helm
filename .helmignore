@@ -1,0 +1,8 @@
+# Patterns to ignore when packaging the chart (helm package/lint).
+.git/
+.gitignore
+.github/
+*.tgz
+.DS_Store
+*.swp
+README.md.gotmpl

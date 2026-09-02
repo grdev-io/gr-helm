@@ -1,0 +1,333 @@
+## grdb — BYOC Helm chart values
+##
+## Every key below maps 1:1 to a grdb-v2 config/config.go environment
+## variable (see that file's own doc comments for the full rationale);
+## groups mirror config.go's own Config struct grouping. Values land in
+## either the generated ConfigMap (non-secret) or Secret (credentials) —
+## see templates/configmap.yaml and templates/secret.yaml for exactly
+## which key goes where.
+##
+## RECOMMENDED INSTALL NAMESPACE: `grdb-platform`. The platform's cluster
+## write-gate (ClusterGuard, internal/adapter/kubernetes/marker.go) looks
+## for a ConfigMap named `grdb-platform-marker` in a namespace literally
+## named `grdb-platform` — both are compiled-in Go constants, not
+## configurable via env var or Helm value. This chart creates that marker
+## ConfigMap in `.Release.Namespace` (see platformMarker below), so
+## installing into any other namespace leaves every write refused
+## (ErrClusterNotMarked) even though the Deployment itself comes up
+## healthy. Install with:
+##   helm install grdb gr-helm/grdb -n grdb-platform --create-namespace
+## Only deviate if LICENSE_FILE/an out-of-band process seeds that marker
+## in `grdb-platform` on the actual target cluster yourself (e.g.
+## KUBECONFIG_PATH/CLUSTER_CONTEXT below point this plane at a different
+## cluster than the one it runs on).
+
+# -- Number of grdb-platform replicas. The platform holds no leader
+# election and no in-memory session/cache state (Redis owns that), but
+# ticket-verified behaviour has only ever run this at 1; raise only after
+# your own soak testing.
+replicaCount: 1
+
+image:
+  # -- Public image published by grdb-v2's own CI (decision record #15):
+  # ghcr.io/grdev-io/grdb, no imagePullSecrets required. The Dockerfile
+  # builds `linux/arm64` by default (Graviton-optimised), but the Go
+  # binary itself is plain CGO_ENABLED=0 — `linux/amd64` works fine if
+  # your own CI builds/pushes that arch under the same tag or a suffixed
+  # one; this chart never hardcodes an architecture.
+  repository: ghcr.io/grdev-io/grdb
+  pullPolicy: IfNotPresent
+  # -- Overrides Chart.appVersion when set. Always pin an explicit tag in
+  # production — never `latest`.
+  tag: ""
+
+# -- Only needed for a private mirror of the image; the public
+# ghcr.io/grdev-io/grdb image needs none.
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Creates the ServiceAccount the platform authenticates to the
+  # Kubernetes API as (its only identity — see rbac below; no
+  # cluster-admin, no host access).
+  create: true
+  annotations: {}
+  # -- Set to bind cloud-provider workload identity (e.g. an AWS IRSA/EKS
+  # Pod Identity role ARN) — only needed for the AWS instance-type
+  # catalogue feature (aws.region/aws.profile below); every other
+  # feature works with no cloud identity at all. Left empty by default:
+  # this is configuration an operator adds out of band, never a default
+  # this chart assumes.
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/grdb-platform
+  name: ""
+
+rbac:
+  # -- Creates the ClusterRole/ClusterRoleBinding/Roles/RoleBindings the
+  # platform needs to manage Tenant namespaces, Secrets, and the six
+  # database-operator custom resources (Postgres/CNPG, Redis, Dragonfly,
+  # MongoDB/PSMDB, ClickHouse/Altinity, Elasticsearch/ECK), plus read
+  # Nodes/StatefulSets/Pods for status and node-occupancy reporting.
+  # Disable only if your platform team applies equivalent RBAC itself.
+  create: true
+  # -- The platform's "install a database operator" and "Compute
+  # Profile" features drive ArgoCD Applications and Karpenter NodePools
+  # respectively — both optional add-ons, not guaranteed to exist on an
+  # arbitrary BYOC cluster. Each integration's own Role/RoleBinding
+  # targets a real namespace (argocd / kube-system), and Helm fails the
+  # install if that namespace does not exist — so each is its own
+  # toggle, defaulted to whatever is safe on a bare cluster.
+  argocdIntegration:
+    # -- kube-system always exists; argocd is not guaranteed, so this
+    # defaults false. Enable it once ArgoCD is installed so "install an
+    # operator" can drive it, and the readiness check can read its
+    # health.
+    enabled: false
+    namespace: argocd
+  karpenterIntegration:
+    # -- kube-system is a guaranteed namespace on every cluster, so this
+    # is safe to default on; it only grants reads unless Karpenter's
+    # CRDs (NodePool/EC2NodeClass) also exist, which is harmless either
+    # way — a ClusterRole rule for an absent CRD is simply never
+    # exercised. Disable if your organisation's RBAC policy forbids
+    # granting permissions for CRDs you don't run.
+    enabled: true
+    namespace: kube-system
+
+platformMarker:
+  # -- Creates the grdb-platform-marker ConfigMap ClusterGuard checks
+  # before any write (see the namespace note at the top of this file).
+  # Leave this on unless you are seeding that marker yourself on a
+  # different target cluster (KUBECONFIG_PATH/CLUSTER_CONTEXT below).
+  create: true
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  # -- Off by default: a BYOC cluster's ingress controller (nginx,
+  # Traefik, an AWS/GCP/Azure LB controller, ...) and TLS story vary far
+  # too much for one opinionated default. Enable and set `className` +
+  # `annotations` for whatever controller you run — this chart never
+  # assumes AWS ALB or any other specific controller.
+  enabled: false
+  # -- e.g. "nginx". Leave empty to omit ingressClassName entirely and
+  # fall back to the cluster's default IngressClass, if one is set.
+  className: ""
+  # -- Passthrough annotations map for your controller/cert-manager,
+  # e.g.:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  #   nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  annotations: {}
+  host: grdb.example.com
+  path: /
+  pathType: Prefix
+  # -- TLS secretName list, standard networking.k8s.io/v1 Ingress shape.
+  # Leave empty to serve plain HTTP (e.g. behind a TLS-terminating LB).
+  tls: []
+  # tls:
+  #   - secretName: grdb-tls
+  #     hosts:
+  #       - grdb.example.com
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+# -- Standard Pod scheduling knobs. Empty by default: the raw manifests
+# this chart is derived from carry a `CriticalAddonsOnly` toleration
+# specific to the vendor's own EKS node groups — that is not a generic
+# default, so it is not templated in; add it back via this value if your
+# own cluster's general-purpose nodes carry the same taint.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podLabels: {}
+
+# -- Arbitrary additional container env vars (name/value or
+# name/valueFrom, standard EnvVar shape) for anything this chart does not
+# already expose as a typed value — e.g. KUBECONFIG_PATH/CLUSTER_CONTEXT,
+# deliberately left out of this chart's own values below because a
+# Helm-installed plane wants in-cluster config, not an explicit
+# kubeconfig pin.
+extraEnv: []
+# extraEnv:
+#   - name: CLUSTER_CONTEXT
+#     value: my-context
+
+migrations:
+  # -- Runs `atlas migrate apply` against migrations/*.sql (bundled in
+  # this chart under files/migrations/, copied verbatim from grdb-v2 and
+  # versioned with it) as a Helm pre-install/pre-upgrade hook Job, before
+  # the Deployment starts. Disable only if your own pipeline runs
+  # migrations out of band.
+  enabled: true
+  image:
+    repository: arigaio/atlas
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# -- Set to reuse a Secret you manage yourself (any of your own
+# provisioning: sealed-secrets, External Secrets Operator, a plain
+# `kubectl create secret`, ...) instead of the one this chart can
+# template from the values below. Must carry every key
+# templates/secret.yaml would otherwise generate (see that template's own
+# comment for the exact key list). When set, none of the *secret* values
+# below are rendered into any object this chart manages.
+existingSecret: ""
+
+# ---------------------------------------------------------------------
+# config/config.go — PORT
+# ---------------------------------------------------------------------
+config:
+  # -- HTTP port the platform listens on (config.DefaultPort).
+  port: 8080
+
+# ---------------------------------------------------------------------
+# config/config.go — DATABASE_URL
+# ---------------------------------------------------------------------
+database:
+  # -- Postgres DSN: the platform's system of record for identity/intent
+  # only — cluster state is never mirrored here (ADR-0005). REQUIRED:
+  # there is no default that works outside local dev. Point this at a
+  # database you manage (a managed Postgres service, or one of the very
+  # engines this platform provisions, bootstrapped separately).
+  url: "postgres://grdb:grdb@localhost:5432/grdb?sslmode=disable"
+
+# ---------------------------------------------------------------------
+# config/config.go — REDIS_URL
+# ---------------------------------------------------------------------
+redis:
+  # -- Redis DSN: the platform's rate-limit/cache layer. REQUIRED exactly
+  # like database.url — there is no Postgres fallback for OTP request
+  # rate limiting.
+  url: "redis://localhost:6379/0"
+
+# ---------------------------------------------------------------------
+# config/config.go — BOOTSTRAP_SUPERADMIN_EMAIL / _PASSWORD
+# ---------------------------------------------------------------------
+bootstrapSuperadmin:
+  # -- Bootstraps the platform's first Platform Admin account at first
+  # boot: if no user holds this email yet, the platform creates one with
+  # this password. Idempotent — once the superadmin exists, these are
+  # never applied again, so a live password is never reset from values.
+  # Leave both empty to skip bootstrap entirely (e.g. inviting a
+  # superadmin some other way).
+  email: ""
+  password: ""
+
+# ---------------------------------------------------------------------
+# config/config.go — SMTP_*
+# ---------------------------------------------------------------------
+smtp:
+  # -- Outbound mail is OPTIONAL: leave host empty and every mail-worthy
+  # feature (today, magic-link sign-in) logs the message instead of
+  # sending it. Set host (and fromAddress, required once host is set) to
+  # send real mail.
+  host: ""
+  port: 587
+  username: ""
+  password: ""
+  fromAddress: ""
+  fromName: "GrDB"
+  # -- Names this client in EHLO/HELO; empty falls back to the pod's own
+  # hostname.
+  heloHost: ""
+  # -- ignoreTLS wins over requireTLS: setting both sends unencrypted.
+  ignoreTLS: false
+  # -- requireTLS (default true) fails the send outright when the server
+  # never advertises STARTTLS, rather than silently falling back to
+  # plaintext.
+  requireTLS: true
+  # -- false disables certificate AND hostname verification — prefer
+  # customCACert for a private CA instead of turning this off.
+  tlsRejectUnauthorized: true
+  # -- Base64-encoded PEM bundle for a relay signed by a private CA.
+  customCACert: ""
+
+# ---------------------------------------------------------------------
+# config/config.go — APP_PUBLIC_URL
+# ---------------------------------------------------------------------
+# -- The scheme+host every emailed magic link resolves against. Empty
+# (default) uses the issuing request's own origin; set this once the
+# platform sits behind a reverse proxy/load balancer (e.g. the
+# ingress.host above) where the request's Host header no longer matches
+# the public address.
+appPublicURL: ""
+
+# ---------------------------------------------------------------------
+# config/config.go — GITHUB_CLIENT_ID/_SECRET, GOOGLE_CLIENT_ID/_SECRET
+# ---------------------------------------------------------------------
+oauth:
+  # -- Each provider is independent and optional: leave both id/secret
+  # empty to hide that provider's "Continue with..." button on /login.
+  # OAuth only ever signs into an *existing* invited account matched by
+  # a verified email; it never creates one.
+  github:
+    clientId: ""
+    clientSecret: ""
+  google:
+    clientId: ""
+    clientSecret: ""
+
+# ---------------------------------------------------------------------
+# config/config.go — AWS_REGION, AWS_PROFILE
+# ---------------------------------------------------------------------
+aws:
+  # -- Both empty leaves the AWS SDK's own config.LoadDefaultConfig
+  # resolution in charge — exactly what an EKS Pod already gets for free
+  # via IRSA/Pod Identity (see serviceAccount.annotations above). Set
+  # either only to pin the Compute Profile instance-type catalogue to a
+  # region/profile regardless of the ambient environment. Not needed on
+  # a non-AWS cluster at all — this feature simply has nothing to read.
+  region: ""
+  profile: ""
+
+# ---------------------------------------------------------------------
+# config/config.go — OPERATOR_CHART_VERSION_*
+# ---------------------------------------------------------------------
+operatorChartVersions:
+  # -- Pins the Helm chart version each Engine's operator installs at,
+  # via the platform's own "install operator" action. Each defaults to
+  # the version confirmed against that chart's own values.yaml at the
+  # time of this grdb-v2 release; set one only to move that Engine to a
+  # newer chart.
+  postgres: "0.29.0"
+  redis: "0.26.1"
+  dragonfly: "v1.6.1"
+  mongodb: "1.23.0"
+  clickhouse: "0.27.3"
+  elastic: "3.5.0"
+
+# ---------------------------------------------------------------------
+# config/config.go — LICENSE_ACTIVATION_KEY, LICENSE_FILE,
+# LICENSING_ENDPOINT (BYOC licensing)
+# ---------------------------------------------------------------------
+licensing:
+  # -- Exchanges for a signed license via licensingEndpoint's
+  # /v1/activate on first boot. Leave empty to activate later from the
+  # console, or to use licenseFile instead for an air-gapped install.
+  licenseActivationKey: ""
+  # -- Path, inside the container, to a signed-license file — the
+  # air-gapped fallback when licenseActivationKey/licensingEndpoint
+  # cannot be reached. Mount the file yourself (e.g. via extraVolumes/
+  # extraVolumeMounts, or bake it into an existingSecret) at this same
+  # path.
+  licenseFile: ""
+  # -- gr-licensing's base URL for activation and the daily heartbeat.
+  # Defaults to the vendor's own production service; override only for a
+  # staging/self-hosted signer.
+  licensingEndpoint: "https://licensing.grdev.io"
+
+# -- Extra volumes/volumeMounts on the grdb-platform container, e.g. to
+# mount a licenseFile (above) from a Secret/ConfigMap you manage, or a
+# kubeconfig for KUBECONFIG_PATH/CLUSTER_CONTEXT (see extraEnv above).
+extraVolumes: []
+extraVolumeMounts: []

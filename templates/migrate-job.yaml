@@ -1,0 +1,72 @@
+{{- if .Values.migrations.enabled }}
+# Migrations run once per install/upgrade, before the Deployment's own
+# resource is applied — never implicit at server boot (cmd/server has no
+# migration step, deliberately: a replica racing another replica's
+# migration, or restarting mid-migration, is exactly the failure mode a
+# boot-time migration invites). `atlas migrate apply` is itself
+# idempotent — recorded migrations are skipped — so re-running this hook
+# on an upgrade against an already-migrated database is a no-op.
+#
+# arigaio/atlas is the same open-source Atlas CLI grdb-v2's own local dev
+# loop uses — pin a digest via migrations.image.tag instead of `latest`
+# for byte-for-byte reproducibility across runs.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "grdb.fullname" . }}-migrate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-4"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "grdb.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # No ServiceAccount needed: Atlas talks to Postgres over
+      # DATABASE_URL, never to the Kubernetes API, so this Job carries no
+      # RBAC and does not use the platform's own ServiceAccount at all —
+      # automountServiceAccountToken: false keeps a token it would never
+      # use off the pod entirely.
+      automountServiceAccountToken: false
+      containers:
+        - name: migrate
+          image: "{{ .Values.migrations.image.repository }}:{{ .Values.migrations.image.tag }}"
+          imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
+          args:
+            - migrate
+            - apply
+            - --dir
+            - file:///migrations
+            - --url
+            - $(DATABASE_URL)
+            - --revisions-schema
+            - public
+          envFrom:
+            - secretRef:
+                name: {{ include "grdb.secretName" . }}
+          volumeMounts:
+            - name: migrations
+              mountPath: /migrations
+              readOnly: true
+      volumes:
+        - name: migrations
+          configMap:
+            name: {{ include "grdb.fullname" . }}-migrations
+{{- end }}

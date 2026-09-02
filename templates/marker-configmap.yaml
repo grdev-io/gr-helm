@@ -1,0 +1,23 @@
+{{- if .Values.platformMarker.create }}
+# ClusterGuard (internal/adapter/kubernetes/marker.go) checks for this
+# ConfigMap's mere presence — never its contents — before authorising
+# any platform write to the connected cluster. Its name
+# (grdb-platform-marker) and namespace (grdb-platform) are compiled-in
+# Go constants, not configurable, so this ConfigMap only does its job
+# when this chart is installed into a namespace literally named
+# `grdb-platform` (see the note at the top of values.yaml). Installing
+# into any other namespace still creates this object correctly here —
+# it simply will not be where ClusterGuard looks.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grdb-platform-marker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+data:
+  # Free-form (ClusterGuard only checks presence, never contents) — kept
+  # human-readable for `kubectl describe` during an incident: which
+  # release onboarded this cluster and when.
+  onboarded-by: "gr-helm chart, release {{ .Release.Name }}"
+{{- end }}

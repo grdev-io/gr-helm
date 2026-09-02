@@ -1,0 +1,48 @@
+name: Release chart
+
+# Publishes this chart to GitHub Pages via the standard
+# helm/chart-releaser-action flow (README.md's "Option A"): on every push
+# to main that bumps Chart.yaml's version, it packages the chart, tags a
+# GitHub Release with the chart archive attached, and regenerates
+# index.yaml on the gh-pages branch so `helm repo add`/`helm repo update`
+# picks it up.
+#
+# One-time repo setup this workflow assumes (not automated here):
+#   - An orphan `gh-pages` branch exists (chart-releaser-action can create
+#     it on first run if "Allow GitHub Actions to create and approve pull
+#     requests" / branch-creation permissions are enabled).
+#   - Settings -> Pages -> deploy from the `gh-pages` branch.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Chart.yaml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint chart
+        run: helm lint .
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.6.0
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

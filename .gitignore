@@ -1,0 +1,11 @@
+# Packaged charts and generated indexes — build artifacts, never source.
+*.tgz
+index.yaml
+
+# Local render/debug output.
+/tmp/
+*.rendered.yaml
+
+# OS/editor cruft.
+.DS_Store
+*.swp
