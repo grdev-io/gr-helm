@@ -17,6 +17,18 @@ metadata:
     {{- include "grdb.labels" . | nindent 4 }}
 data:
   PORT: {{ .Values.config.port | quote }}
+  {{- if .Values.platformDNSZone }}
+  PLATFORM_DNS_ZONE: {{ .Values.platformDNSZone | quote }}
+  {{- end }}
+  {{- if .Values.clusterVPCID }}
+  CLUSTER_VPC_ID: {{ .Values.clusterVPCID | quote }}
+  {{- end }}
+  {{- if .Values.observability.opencostURL }}
+  OPENCOST_URL: {{ .Values.observability.opencostURL | quote }}
+  {{- end }}
+  {{- if .Values.observability.prometheusURL }}
+  PROMETHEUS_URL: {{ .Values.observability.prometheusURL | quote }}
+  {{- end }}
   SMTP_PORT: {{ .Values.smtp.port | quote }}
   SMTP_FROM_NAME: {{ .Values.smtp.fromName | quote }}
   SMTP_HELO_HOST: {{ .Values.smtp.heloHost | quote }}

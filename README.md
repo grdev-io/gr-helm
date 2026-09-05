@@ -87,6 +87,14 @@ A few notable ones:
   External Secrets Operator, a plain `kubectl create secret generic`)
   instead of letting this chart template one from `values.yaml`. See
   `templates/secret.yaml` for the exact key list it must carry.
+- **`platformDNSZone`** — empty (default) disables the redis Engine's
+  external exposure modes (Internal LB+DNS, Internet-facing) rather
+  than emitting a broken hostname; set it to your own DNS-managed zone
+  to enable them.
+- **`clusterVPCID`** — required to create a VPC Peering Connection
+  (Network Connections feature); no ambient default like `aws.region`/
+  `aws.profile`, since nothing about a cluster's own networking names
+  which VPC to peer from.
 - **`ingress.enabled`** — off by default. This chart never assumes a
   specific ingress controller or cloud load balancer; set
   `ingress.className` and `ingress.annotations` for whatever your

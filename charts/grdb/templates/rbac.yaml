@@ -40,6 +40,18 @@ rules:
     resources: ["secrets"]
     verbs: ["get", "create", "patch", "delete"]
 
+  # Companion Service: when both external exposure modes are enabled at
+  # once on a redis Instance, the operator's own single-Service CRD
+  # field has no room for the second, so the platform applies a plain
+  # core v1 Service itself ("<instance>-public"). Instance
+  # create/UpdateExposure Server-Side Applies it (create+patch), and
+  # UpdateExposure deletes it when that mode is turned back off
+  # (delete). No get/list/watch: nothing ever reads a companion Service
+  # back — its name is recomputed deterministically from the Instance.
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["create", "patch", "delete"]
+
   # Storage reclaim on Instance delete: some operators (e.g. MongoDB's
   # PSMDB, dragonfly-operator) retain their PersistentVolumeClaims by
   # design, so the platform deletes the retained ones itself, or the
@@ -80,13 +92,39 @@ rules:
     resources: ["elasticsearches"]
     verbs: ["get", "list", "watch", "create", "patch", "delete"]
 
-  # Redis Engine Adapter: the OT-Container-Kit operator's standalone
-  # Redis custom resource. Its status source reads the owned StatefulSet
-  # instead of this CR (see the apps/statefulsets rule below), so this
-  # rule needs no get/list/watch at all.
+  # Redis Engine Adapter's standalone topology: the OT-Container-Kit
+  # operator's Redis custom resource. Its status source reads the owned
+  # StatefulSet instead of this CR (see the apps/statefulsets rule
+  # below), so no list/watch — but Operations' "update-configuration"
+  # reads the CR first to upsert into spec.redisConfig.dynamicConfig
+  # without dropping a key a prior call set, so get is real here.
   - apiGroups: ["redis.redis.opstreelabs.in"]
     resources: ["redis"]
-    verbs: ["create", "patch", "delete"]
+    verbs: ["get", "create", "patch", "delete"]
+
+  # Redis Engine Adapter's Replication topology, and Sentinel
+  # topology's own primary CR (sentinel shares replication's GVR/BuildCR
+  # — same shape) — get for the same update-configuration read-merge-
+  # write as the standalone CR above.
+  - apiGroups: ["redis.redis.opstreelabs.in"]
+    resources: ["redisreplications"]
+    verbs: ["get", "create", "patch", "delete"]
+
+  # Sentinel topology's own companion CR: applied/deleted alongside the
+  # primary RedisReplication above, and read back for the companion's
+  # own reported state — unlike the primary CR, RedisSentinel does
+  # carry meaningful status (get+list+watch).
+  - apiGroups: ["redis.redis.opstreelabs.in"]
+    resources: ["redissentinels"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+
+  # Redis Engine Adapter's Cluster topology: unlike every other redis
+  # topology above, the RedisCluster CR itself carries
+  # readyLeaderReplicas/readyFollowerReplicas/phase, so this needs
+  # get+list+watch exactly like the other CR-based status rules above.
+  - apiGroups: ["redis.redis.opstreelabs.in"]
+    resources: ["redisclusters"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
 
   # Dragonfly Engine Adapter: the dragonfly-operator's Dragonfly custom
   # resource. Same status-from-StatefulSet shape as redis's rule above.
@@ -110,6 +148,24 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
+
+  # Redis Engine Adapters' ServiceMonitor companion: applied only when
+  # a ClusterCapabilities check confirms this CRD is registered, so
+  # this rule is only ever exercised on a cluster running the
+  # Prometheus Operator — never a hard requirement to boot, exactly
+  # like the six database-operator CRD rules above being harmless when
+  # their own CRD is absent.
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["servicemonitors"]
+    verbs: ["get", "create", "patch", "delete"]
+
+  # redis-operator's own controller metrics PodMonitor: applied once
+  # per operator install rather than per Instance, gated by the same
+  # ClusterCapabilities check as servicemonitors above — never a hard
+  # requirement to boot.
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["podmonitors"]
+    verbs: ["get", "create", "patch", "delete"]
 
   # Nodes, cluster-wide: the platform's Compute Profile page lists the
   # machines provisioned for one profile. The grant is necessarily

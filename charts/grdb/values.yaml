@@ -212,6 +212,18 @@ bootstrapSuperadmin:
   password: ""
 
 # ---------------------------------------------------------------------
+# config/config.go — PLATFORM_DNS_ZONE
+# ---------------------------------------------------------------------
+# -- Base DNS zone the redis Engine's external exposure modes (Internal
+# LB+DNS, Internet-facing) build hostnames under, as
+# `<instance>-pri-<hash>.<zone>` / `<instance>-pub-<hash>.<zone>` — hash
+# rather than the tenant slug keeps two Tenants from ever colliding on
+# the same hostname. Empty (default) disables both LB exposure modes
+# rather than emitting a broken hostname; set this to your own
+# Route53/DNS-managed zone to enable them.
+platformDNSZone: ""
+
+# ---------------------------------------------------------------------
 # config/config.go — SMTP_*
 # ---------------------------------------------------------------------
 smtp:
@@ -251,6 +263,22 @@ smtp:
 appPublicURL: ""
 
 # ---------------------------------------------------------------------
+# config/config.go — OPENCOST_URL, PROMETHEUS_URL
+# ---------------------------------------------------------------------
+observability:
+  # -- OpenCost's Allocation API base URL for live per-Instance cost.
+  # Empty falls back to the platform binary's own compiled default
+  # (http://opencost.monitoring.svc.cluster.local:9003) — override only
+  # if your OpenCost Service lives at a different name/namespace/port.
+  # Cost reporting degrades gracefully, never a 500, when unreachable.
+  opencostURL: ""
+  # -- Prometheus base URL for live per-Instance metrics (redis Engine
+  # only). Empty falls back to the platform binary's own compiled
+  # default (http://prometheus-operated.monitoring.svc.cluster.local:9090).
+  # Metrics degrade gracefully, never a 500, when unreachable.
+  prometheusURL: ""
+
+# ---------------------------------------------------------------------
 # config/config.go — GITHUB_CLIENT_ID/_SECRET, GOOGLE_CLIENT_ID/_SECRET
 # ---------------------------------------------------------------------
 oauth:
@@ -277,6 +305,16 @@ aws:
   # a non-AWS cluster at all — this feature simply has nothing to read.
   region: ""
   profile: ""
+
+# ---------------------------------------------------------------------
+# config/config.go — CLUSTER_VPC_ID
+# ---------------------------------------------------------------------
+# -- AWS VPC id every VPC Peering Connection (Network Connections
+# feature) originates from. No ambient default like aws.region/
+# aws.profile above — there is nothing about a cluster's own networking
+# that names which VPC to peer from. Required to create a VPC Peering
+# Connection at all; leave empty if this feature is unused.
+clusterVPCID: ""
 
 # ---------------------------------------------------------------------
 # config/config.go — OPERATOR_CHART_VERSION_*
