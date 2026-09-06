@@ -62,6 +62,29 @@ data:
   OPERATOR_CHART_VERSION_MONGODB: {{ .Values.operatorChartVersions.mongodb | quote }}
   OPERATOR_CHART_VERSION_CLICKHOUSE: {{ .Values.operatorChartVersions.clickhouse | quote }}
   OPERATOR_CHART_VERSION_ELASTIC: {{ .Values.operatorChartVersions.elastic | quote }}
+  {{- if .Values.backup.s3Bucket }}
+  BACKUP_S3_BUCKET: {{ .Values.backup.s3Bucket | quote }}
+  {{- end }}
+  {{- if .Values.backup.s3Region }}
+  BACKUP_S3_REGION: {{ .Values.backup.s3Region | quote }}
+  {{- end }}
+  {{- if .Values.backup.s3Prefix }}
+  BACKUP_S3_PREFIX: {{ .Values.backup.s3Prefix | quote }}
+  {{- end }}
+  {{- if .Values.backup.redisBackupImage }}
+  BACKUP_REDIS_BACKUP_IMAGE: {{ .Values.backup.redisBackupImage | quote }}
+  {{- end }}
+  {{- if .Values.backup.redisRestoreImage }}
+  BACKUP_REDIS_RESTORE_IMAGE: {{ .Values.backup.redisRestoreImage | quote }}
+  {{- end }}
+  BACKUP_SERVICE_ACCOUNT: {{ .Values.backup.serviceAccount | quote }}
+  BACKUP_JOB_TTL_SECONDS: {{ .Values.backup.jobTTLSeconds | quote }}
+  {{- if .Values.dragonflyBackup.bucket }}
+  DRAGONFLY_BACKUP_BUCKET: {{ .Values.dragonflyBackup.bucket | quote }}
+  {{- end }}
+  {{- if .Values.dragonflyBackup.roleARN }}
+  DRAGONFLY_BACKUP_ROLE_ARN: {{ .Values.dragonflyBackup.roleARN | quote }}
+  {{- end }}
   {{- if .Values.licensing.licenseFile }}
   LICENSE_FILE: {{ .Values.licensing.licenseFile | quote }}
   {{- end }}

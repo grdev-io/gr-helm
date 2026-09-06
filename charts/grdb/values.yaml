@@ -333,6 +333,49 @@ operatorChartVersions:
   elastic: "3.5.0"
 
 # ---------------------------------------------------------------------
+# config/config.go — BACKUP_S3_BUCKET, BACKUP_S3_REGION, BACKUP_S3_PREFIX,
+# BACKUP_REDIS_BACKUP_IMAGE, BACKUP_REDIS_RESTORE_IMAGE,
+# BACKUP_SERVICE_ACCOUNT, BACKUP_JOB_TTL_SECONDS (ADR-0018)
+# ---------------------------------------------------------------------
+backup:
+  # -- redis Backup/Restore (issue #99, ADR-0018) is entirely opt-in:
+  # s3Bucket empty (default) disables the feature — BackupUsecase.Create
+  # refuses cleanly rather than launching a Job that can never reach a
+  # real destination. The redis-backup ServiceAccount this feature's
+  # Jobs/initContainers run as is applied into every Tenant namespace by
+  # the platform itself; its IRSA role ARN is bound out-of-band via
+  # `task platform:aws-bind` (ADR-0018), never a value here.
+  s3Bucket: ""
+  s3Region: ""
+  s3Prefix: ""
+  # -- Public ghcr.io images (never the private-ECR path) — see
+  # .github/workflows/release-backup-images.yml in grdb-v2. Both
+  # required once s3Bucket is set.
+  redisBackupImage: ""
+  redisRestoreImage: ""
+  # -- Matches config.DefaultBackupServiceAccount; override only if a
+  # cluster-wide naming policy forbids the default "redis-backup" name.
+  serviceAccount: "redis-backup"
+  # -- How long a terminal backup/prune Job survives before Kubernetes
+  # garbage-collects it; long enough that BackupUsecase's own lazy
+  # finalize reliably observes its terminal state first.
+  jobTTLSeconds: 3600
+
+# ---------------------------------------------------------------------
+# config/config.go — DRAGONFLY_BACKUP_BUCKET, DRAGONFLY_BACKUP_ROLE_ARN
+# (ADR-0019)
+# ---------------------------------------------------------------------
+dragonflyBackup:
+  # -- dragonfly S3 snapshot support (ticket #111, ADR-0019) is opt-in:
+  # both empty (default) refuses every SnapshotS3Enabled create request.
+  # roleARN is the one shared, dragonfly-*-trust-scoped IRSA role every
+  # dragonfly Instance's ServiceAccount (dragonfly-<instance-name>) is
+  # annotated with in-band, by the platform itself — never bound
+  # out-of-band like backup.serviceAccount above.
+  bucket: ""
+  roleARN: ""
+
+# ---------------------------------------------------------------------
 # config/config.go — LICENSE_ACTIVATION_KEY, LICENSE_FILE,
 # LICENSING_ENDPOINT (BYOC licensing)
 # ---------------------------------------------------------------------
