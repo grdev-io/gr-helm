@@ -14,7 +14,7 @@ version: 0.5.1
 # appVersion tracks the grdb-v2 release this chart defaults to
 # (image.tag below); update both together when cutting a new grdb-v2
 # release.
-appVersion: "0.1.0"
+appVersion: "v0.3.2"
 
 keywords:
   - dbaas
