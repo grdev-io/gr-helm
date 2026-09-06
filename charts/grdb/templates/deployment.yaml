@@ -23,10 +23,21 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
       annotations:
+        # Forces a rollout whenever a helm upgrade changes only the
+        # ConfigMap/Secret this Deployment reads via envFrom — neither
+        # object is part of this Pod template, so Kubernetes has no
+        # other reason to restart a running Pod when either changes
+        # (found live on ddb-eks: a config-only `helm upgrade` reported
+        # success while the running Pod kept serving hours-old env
+        # until a manual `kubectl rollout restart`, gr-helm#1).
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "grdb.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
