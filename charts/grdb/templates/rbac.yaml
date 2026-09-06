@@ -52,6 +52,17 @@ rules:
     resources: ["services"]
     verbs: ["create", "patch", "delete"]
 
+  # MetricsNetworkPolicy (ticket #110): a plain networking.k8s.io/v1
+  # NetworkPolicy, additive alongside whatever NetworkPolicy the
+  # operator itself generates (dragonfly's own spec.networkPolicyEnabled) —
+  # applied at Instance create (create+patch) to allow Prometheus
+  # ingress to the metrics admin port, removed at Instance delete
+  # (delete). Found live on ddb-eks: every dragonfly Instance create
+  # returned 502 with no rule for this resource at all.
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["create", "patch", "delete"]
+
   # Storage reclaim on Instance delete: some operators (e.g. MongoDB's
   # PSMDB, dragonfly-operator) retain their PersistentVolumeClaims by
   # design, so the platform deletes the retained ones itself, or the
