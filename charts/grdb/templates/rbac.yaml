@@ -64,6 +64,27 @@ rules:
     resources: ["persistentvolumeclaims"]
     verbs: ["list", "delete"]
 
+  # redis Backup/Restore's redis-backup ServiceAccount, applied into
+  # every Tenant namespace (NamespaceReserver.Reserve, ADR-0018), and
+  # dragonfly S3 snapshot's per-Instance dragonfly-<name> ServiceAccount
+  # (ADR-0019) — both created/annotated by the platform itself
+  # (create+patch), never read back or deleted by it (redis-backup
+  # outlives the namespace; dragonfly's is deleted alongside its
+  # Instance's namespace-scoped objects by ownerReference, not by this
+  # ServiceAccount name directly).
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["create", "patch"]
+
+  # redis Backup/Restore's own orchestration (ADR-0018): plain batch/v1
+  # Jobs running the platform's redis-backup/redis-restore images.
+  # BackupUsecase.Create/Delete Server-Side Apply a Job (create+patch)
+  # through the same ClusterApplier every Engine Adapter uses, and lazy
+  # status finalize (List/Get) reads a terminal Job's own state back.
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "create", "patch"]
+
   # Postgres Engine Adapter: the CloudNativePG operator's Cluster custom
   # resource. Instance create/update Server-Side Applies it
   # (create+patch), the status source watches it cluster-wide for
@@ -71,6 +92,17 @@ rules:
   # it (delete).
   - apiGroups: ["postgresql.cnpg.io"]
     resources: ["clusters"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+
+  # Postgres Engine Adapter's Pooler (CONTEXT.md "Pooler", issue #112):
+  # CloudNativePG's own Pooler custom resource, registered as postgres's
+  # CompanionGVR (catalog.go) — its status is watched cluster-wide
+  # exactly like Clusters above (list+watch), and Instance
+  # create/UpdateNetworks/UpdatePooler Server-Side Apply it
+  # (create+patch) and remove it when disabled or the Instance is
+  # deleted (delete).
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["poolers"]
     verbs: ["get", "list", "watch", "create", "patch", "delete"]
 
   # MongoDB Engine Adapter: the Percona Server for MongoDB operator's
