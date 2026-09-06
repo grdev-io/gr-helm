@@ -79,6 +79,12 @@ data:
   {{- end }}
   BACKUP_SERVICE_ACCOUNT: {{ .Values.backup.serviceAccount | quote }}
   BACKUP_JOB_TTL_SECONDS: {{ .Values.backup.jobTTLSeconds | quote }}
+  {{- if .Values.backup.jobTolerationKey }}
+  BACKUP_JOB_TOLERATION_KEY: {{ .Values.backup.jobTolerationKey | quote }}
+  BACKUP_JOB_TOLERATION_OPERATOR: {{ .Values.backup.jobTolerationOperator | quote }}
+  BACKUP_JOB_TOLERATION_VALUE: {{ .Values.backup.jobTolerationValue | quote }}
+  BACKUP_JOB_TOLERATION_EFFECT: {{ .Values.backup.jobTolerationEffect | quote }}
+  {{- end }}
   {{- if .Values.dragonflyBackup.bucket }}
   DRAGONFLY_BACKUP_BUCKET: {{ .Values.dragonflyBackup.bucket | quote }}
   {{- end }}

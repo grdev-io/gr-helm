@@ -360,6 +360,17 @@ backup:
   # garbage-collects it; long enough that BackupUsecase's own lazy
   # finalize reliably observes its terminal state first.
   jobTTLSeconds: 3600
+  # -- Taint an operator's cluster gives its Backup/prune Jobs'
+  # Pods a toleration for (issue #99 follow-up): empty (default) adds
+  # no toleration at all, correct for a cluster with no tainted
+  # capacity. Set on any cluster where every node carries a taint
+  # (e.g. Karpenter-provisioned NodePools, a tainted core/system
+  # group) — otherwise a Backup/prune Job's Pod can never schedule
+  # anywhere.
+  jobTolerationKey: ""
+  jobTolerationOperator: "Exists"
+  jobTolerationValue: ""
+  jobTolerationEffect: ""
 
 # ---------------------------------------------------------------------
 # config/config.go — DRAGONFLY_BACKUP_BUCKET, DRAGONFLY_BACKUP_ROLE_ARN
