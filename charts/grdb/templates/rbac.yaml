@@ -68,13 +68,17 @@ rules:
   # every Tenant namespace (NamespaceReserver.Reserve, ADR-0018), and
   # dragonfly S3 snapshot's per-Instance dragonfly-<name> ServiceAccount
   # (ADR-0019) — both created/annotated by the platform itself
-  # (create+patch), never read back or deleted by it (redis-backup
-  # outlives the namespace; dragonfly's is deleted alongside its
-  # Instance's namespace-scoped objects by ownerReference, not by this
-  # ServiceAccount name directly).
+  # (create+patch). delete is real too: Instance delete's own teardown
+  # (deleteInstanceCluster, BackupServiceAccountProvider branch)
+  # explicitly removes a dragonfly Instance's ServiceAccount by name —
+  # found live on ddb-eks, where create+patch alone left every dragonfly
+  # delete failing 500 on a 403 from this exact call. redis-backup's own
+  # ServiceAccount is never deleted by this platform (it outlives the
+  # namespace), but the grant is a single verbs list for the resource,
+  # not per-caller.
   - apiGroups: [""]
     resources: ["serviceaccounts"]
-    verbs: ["create", "patch"]
+    verbs: ["create", "patch", "delete"]
 
   # redis Backup/Restore's own orchestration (ADR-0018): plain batch/v1
   # Jobs running the platform's redis-backup/redis-restore images.
