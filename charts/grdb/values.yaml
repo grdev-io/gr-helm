@@ -439,6 +439,20 @@ elasticBackup:
   roleARN: ""
 
 # ---------------------------------------------------------------------
+# config/config.go — POSTGRES_BACKUP_BUCKET, POSTGRES_BACKUP_ROLE_ARN
+# (ADR-0020, ADR-0035)
+# ---------------------------------------------------------------------
+postgresBackup:
+  # -- postgres continuous backup via CloudNativePG's own Barman Cloud
+  # Plugin is opt-in: both empty (default) refuses every
+  # BackupEnabled create/enable request. roleARN is the IRSA role
+  # every postgres Cluster's own spec.serviceAccountTemplate is
+  # annotated with in-band, by the platform itself. ADR-0035: this
+  # MUST be its own role — see clickhouseBackup's own comment above.
+  bucket: ""
+  roleARN: ""
+
+# ---------------------------------------------------------------------
 # config/config.go — LICENSE_ACTIVATION_KEY, LICENSE_FILE,
 # LICENSING_ENDPOINT (BYOC licensing)
 # ---------------------------------------------------------------------

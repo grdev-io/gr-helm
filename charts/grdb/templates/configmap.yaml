@@ -118,6 +118,12 @@ data:
   {{- if .Values.elasticBackup.roleARN }}
   ELASTIC_BACKUP_ROLE_ARN: {{ .Values.elasticBackup.roleARN | quote }}
   {{- end }}
+  {{- if .Values.postgresBackup.bucket }}
+  POSTGRES_BACKUP_BUCKET: {{ .Values.postgresBackup.bucket | quote }}
+  {{- end }}
+  {{- if .Values.postgresBackup.roleARN }}
+  POSTGRES_BACKUP_ROLE_ARN: {{ .Values.postgresBackup.roleARN | quote }}
+  {{- end }}
   {{- if .Values.licensing.licenseFile }}
   LICENSE_FILE: {{ .Values.licensing.licenseFile | quote }}
   {{- end }}
