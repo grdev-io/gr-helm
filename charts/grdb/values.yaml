@@ -400,14 +400,14 @@ clickhouseBackup:
   # never DRAGONFLY_BACKUP_ROLE_ARN/ELASTIC_BACKUP_ROLE_ARN/
   # MONGODB_BACKUP_ROLE_ARN's ARN — each Engine's trust policy is
   # scoped to its own ServiceAccount name prefix (clickhouse-*).
-  bucket: "ddb-db-snapshots"
-  roleARN: "arn:aws:iam::902683578695:role/ddb-backup-irsa-b97874ea0e063165c3f31f966e"
+  bucket: ""
+  roleARN: ""
   # -- Public ghcr.io images (never the private-ECR path) — see
   # .github/workflows/release-backup-images.yml in grdb-v2. All three
   # required once bucket is set.
-  backupSidecarImage: "ghcr.io/grdev-io/clickhouse-backup-sidecar:v0.1.0"
-  backupJobImage: "ghcr.io/grdev-io/clickhouse-backup-job:v0.1.0"
-  restoreImage: "ghcr.io/grdev-io/clickhouse-restore:v0.1.0"
+  backupSidecarImage: ""
+  backupJobImage: ""
+  restoreImage: ""
 
 # ---------------------------------------------------------------------
 # config/config.go — MONGODB_BACKUP_BUCKET, MONGODB_BACKUP_ROLE_ARN
@@ -420,8 +420,8 @@ mongodbBackup:
   # ServiceAccount (one per Tenant, reused by every Instance) is
   # annotated with in-band. ADR-0035: this MUST be its own role — see
   # clickhouseBackup's own comment above.
-  bucket: "ddb-db-snapshots"
-  roleARN: "arn:aws:iam::902683578695:role/ddb-backup-irsa-b97874ea0e063165c3f31f966e"
+  bucket: ""
+  roleARN: ""
 
 # ---------------------------------------------------------------------
 # config/config.go — ELASTIC_BACKUP_BUCKET, ELASTIC_BACKUP_ROLE_ARN
@@ -435,8 +435,8 @@ elasticBackup:
   # so the Elasticsearch pod's own snapshot plugin can write to S3.
   # ADR-0035: this MUST be its own role — see clickhouseBackup's own
   # comment above.
-  bucket: "ddb-db-snapshots"
-  roleARN: "arn:aws:iam::902683578695:role/ddb-backup-irsa-b97874ea0e063165c3f31f966e"
+  bucket: ""
+  roleARN: ""
 
 # ---------------------------------------------------------------------
 # config/config.go — LICENSE_ACTIVATION_KEY, LICENSE_FILE,
