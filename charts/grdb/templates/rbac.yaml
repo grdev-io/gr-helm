@@ -120,6 +120,43 @@ rules:
     resources: ["poolers"]
     verbs: ["get", "list", "watch", "create", "patch", "delete"]
 
+  # postgres Engine Adapter's continuous backup (issue #116, #120,
+  # ADR-0020): the Barman Cloud Plugin's ObjectStore (one per Tenant,
+  # Server-Side Applied lazily on that Tenant's first backup-enabled
+  # Instance, never deleted — create+patch, no get/list/watch needed
+  # since it is referenced by name, never read back), the on-demand
+  # Backup custom resource ("Backup now" applies one; live history
+  # lists every Backup by cluster label — get+list+watch+create+patch),
+  # and the ScheduledBackup custom resource (day-2 cron+suspend
+  # sub-resource, applied like Networks — create+patch, never deleted,
+  # suspend:true instead). Found live on ddb-eks: the platform's own
+  # watch pipeline for Backups failed to sync with no rule for this
+  # resource at all, and a postgres Instance create with backup enabled
+  # would fail identically applying its Tenant's ObjectStore.
+  - apiGroups: ["barmancloud.cnpg.io"]
+    resources: ["objectstores"]
+    verbs: ["get", "create", "patch"]
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["backups"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["scheduledbackups"]
+    verbs: ["get", "create", "patch"]
+
+  # ClickHouse Engine Adapter's backup Job (issue #140, ADR-0025): the
+  # per-Instance namespace-scoped Role/RoleBinding the platform applies
+  # so its own backup Job's ServiceAccount can list the Instance's own
+  # shard-0 replica Pods live at run time (create+patch+delete — same
+  # apply/teardown shape as every other companion object above). The
+  # grdb-platform ClusterRole's own pre-existing pods get/list/watch
+  # rule above already covers what these Roles themselves grant, so
+  # this is not a privilege escalation. Found live on ddb-eks: every
+  # clickhouse Instance create returned 502 with no rule for this
+  # resource at all.
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
+    verbs: ["create", "patch", "delete"]
+
   # MongoDB Engine Adapter: the Percona Server for MongoDB operator's
   # PerconaServerMongoDB custom resource. Same shape as postgres's rule
   # above.
@@ -127,11 +164,32 @@ rules:
     resources: ["perconaservermongodbs"]
     verbs: ["get", "list", "watch", "create", "patch", "delete"]
 
+  # MongoDB Engine Adapter's native backup/restore (issue #144,
+  # ADR-0029): the Percona operator's own PerconaServerMongoDBBackup
+  # (Create/List/Get/Delete — a real entity a Tenant lists many of,
+  # never routed through OperationCatalog) and
+  # PerconaServerMongoDBRestore (create+patch only, create-time-only
+  # like every other Engine's own Restore) custom resources.
+  - apiGroups: ["psmdb.percona.com"]
+    resources: ["perconaservermongodbbackups"]
+    verbs: ["get", "list", "create", "patch", "delete"]
+  - apiGroups: ["psmdb.percona.com"]
+    resources: ["perconaservermongodbrestores"]
+    verbs: ["create", "patch"]
+
   # ClickHouse Engine Adapter: the Altinity operator's
   # ClickHouseInstallation custom resource.
   - apiGroups: ["clickhouse.altinity.com"]
     resources: ["clickhouseinstallations"]
     verbs: ["get", "list", "watch", "create", "patch", "delete"]
+
+  # ClickHouse Engine Adapter's per-Tenant Keeper ensemble (ADR-0023):
+  # the Altinity operator's own ClickHouseKeeperInstallation custom
+  # resource, Server-Side Applied lazily once per Tenant (create+patch,
+  # never deleted, never read back — referenced by deterministic name).
+  - apiGroups: ["clickhouse-keeper.altinity.com"]
+    resources: ["clickhousekeeperinstallations"]
+    verbs: ["create", "patch"]
 
   # Elasticsearch Engine Adapter: the ECK operator's Elasticsearch custom
   # resource.
