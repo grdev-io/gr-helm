@@ -387,6 +387,58 @@ dragonflyBackup:
   roleARN: ""
 
 # ---------------------------------------------------------------------
+# config/config.go — CLICKHOUSE_BACKUP_BUCKET, CLICKHOUSE_BACKUP_ROLE_ARN
+# (ADR-0025, ADR-0035)
+# ---------------------------------------------------------------------
+clickhouseBackup:
+  # -- clickhouse backup via the clickhouse-backup sidecar is opt-in:
+  # both empty (default) omits the sidecar/ServiceAccount from every
+  # clickhouse Instance's pod entirely. roleARN is the IRSA role every
+  # clickhouse-<instance-name> ServiceAccount is annotated with
+  # in-band, by the platform itself — never bound out-of-band like
+  # backup.serviceAccount above. ADR-0035: this MUST be its own role,
+  # never DRAGONFLY_BACKUP_ROLE_ARN/ELASTIC_BACKUP_ROLE_ARN/
+  # MONGODB_BACKUP_ROLE_ARN's ARN — each Engine's trust policy is
+  # scoped to its own ServiceAccount name prefix (clickhouse-*).
+  bucket: "ddb-db-snapshots"
+  roleARN: "arn:aws:iam::902683578695:role/ddb-backup-irsa-b97874ea0e063165c3f31f966e"
+  # -- Public ghcr.io images (never the private-ECR path) — see
+  # .github/workflows/release-backup-images.yml in grdb-v2. All three
+  # required once bucket is set.
+  backupSidecarImage: "ghcr.io/grdev-io/clickhouse-backup-sidecar:v0.1.0"
+  backupJobImage: "ghcr.io/grdev-io/clickhouse-backup-job:v0.1.0"
+  restoreImage: "ghcr.io/grdev-io/clickhouse-restore:v0.1.0"
+
+# ---------------------------------------------------------------------
+# config/config.go — MONGODB_BACKUP_BUCKET, MONGODB_BACKUP_ROLE_ARN
+# (ADR-0029, ADR-0035)
+# ---------------------------------------------------------------------
+mongodbBackup:
+  # -- mongodb backup via PSMDB's own native spec.backup is opt-in:
+  # both empty (default) leaves spec.backup unset on every mongodb
+  # Instance. roleARN is the IRSA role every mongodb-backup-<tenant>
+  # ServiceAccount (one per Tenant, reused by every Instance) is
+  # annotated with in-band. ADR-0035: this MUST be its own role — see
+  # clickhouseBackup's own comment above.
+  bucket: "ddb-db-snapshots"
+  roleARN: "arn:aws:iam::902683578695:role/ddb-backup-irsa-b97874ea0e063165c3f31f966e"
+
+# ---------------------------------------------------------------------
+# config/config.go — ELASTIC_BACKUP_BUCKET, ELASTIC_BACKUP_ROLE_ARN
+# (ADR-0033, ADR-0035)
+# ---------------------------------------------------------------------
+elasticBackup:
+  # -- elastic backup via live Elasticsearch SLM (no Kubernetes object
+  # at all, ADR-0033) is opt-in: both empty (default) refuses every
+  # enable-backup request. roleARN is the IRSA role every
+  # elastic-<instance-name> ServiceAccount is annotated with in-band,
+  # so the Elasticsearch pod's own snapshot plugin can write to S3.
+  # ADR-0035: this MUST be its own role — see clickhouseBackup's own
+  # comment above.
+  bucket: "ddb-db-snapshots"
+  roleARN: "arn:aws:iam::902683578695:role/ddb-backup-irsa-b97874ea0e063165c3f31f966e"
+
+# ---------------------------------------------------------------------
 # config/config.go — LICENSE_ACTIVATION_KEY, LICENSE_FILE,
 # LICENSING_ENDPOINT (BYOC licensing)
 # ---------------------------------------------------------------------

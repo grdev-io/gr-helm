@@ -91,6 +91,33 @@ data:
   {{- if .Values.dragonflyBackup.roleARN }}
   DRAGONFLY_BACKUP_ROLE_ARN: {{ .Values.dragonflyBackup.roleARN | quote }}
   {{- end }}
+  {{- if .Values.clickhouseBackup.bucket }}
+  CLICKHOUSE_BACKUP_BUCKET: {{ .Values.clickhouseBackup.bucket | quote }}
+  {{- end }}
+  {{- if .Values.clickhouseBackup.roleARN }}
+  CLICKHOUSE_BACKUP_ROLE_ARN: {{ .Values.clickhouseBackup.roleARN | quote }}
+  {{- end }}
+  {{- if .Values.clickhouseBackup.backupSidecarImage }}
+  CLICKHOUSE_BACKUP_SIDECAR_IMAGE: {{ .Values.clickhouseBackup.backupSidecarImage | quote }}
+  {{- end }}
+  {{- if .Values.clickhouseBackup.backupJobImage }}
+  CLICKHOUSE_BACKUP_JOB_IMAGE: {{ .Values.clickhouseBackup.backupJobImage | quote }}
+  {{- end }}
+  {{- if .Values.clickhouseBackup.restoreImage }}
+  CLICKHOUSE_RESTORE_IMAGE: {{ .Values.clickhouseBackup.restoreImage | quote }}
+  {{- end }}
+  {{- if .Values.mongodbBackup.bucket }}
+  MONGODB_BACKUP_BUCKET: {{ .Values.mongodbBackup.bucket | quote }}
+  {{- end }}
+  {{- if .Values.mongodbBackup.roleARN }}
+  MONGODB_BACKUP_ROLE_ARN: {{ .Values.mongodbBackup.roleARN | quote }}
+  {{- end }}
+  {{- if .Values.elasticBackup.bucket }}
+  ELASTIC_BACKUP_BUCKET: {{ .Values.elasticBackup.bucket | quote }}
+  {{- end }}
+  {{- if .Values.elasticBackup.roleARN }}
+  ELASTIC_BACKUP_ROLE_ARN: {{ .Values.elasticBackup.roleARN | quote }}
+  {{- end }}
   {{- if .Values.licensing.licenseFile }}
   LICENSE_FILE: {{ .Values.licensing.licenseFile | quote }}
   {{- end }}
