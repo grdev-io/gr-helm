@@ -30,27 +30,22 @@ rules:
     resources: ["namespaces"]
     verbs: ["get", "create", "patch", "delete"]
 
-  # Connection Secret reads (SecretReader.Get — get); platform-issued
-  # credentials for engines whose operator issues none: Instance create
-  # Server-Side Applies a Secret under the platform's own field manager
-  # before the CR references it (create+patch), Instance delete removes
-  # it (delete). Every reference is always by exact namespace/name — no
-  # "list"/"watch" is ever needed on Secrets.
+  # Secret: create+patch for Server-Side Apply before the CR references
+  # it, delete on Instance delete, get for connection/credential reads,
+  # list for the Resource Map feature (Instance detail → Resources tab
+  # enumerates every Secret in the tenant namespace matching
+  # InstanceIdentity labels — never reads Secret data, only metadata).
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "create", "patch", "delete"]
+    verbs: ["get", "list", "create", "patch", "delete"]
 
-  # Companion Service: when both external exposure modes are enabled at
-  # once on a redis Instance, the operator's own single-Service CRD
-  # field has no room for the second, so the platform applies a plain
-  # core v1 Service itself ("<instance>-public"). Instance
-  # create/UpdateExposure Server-Side Applies it (create+patch), and
-  # UpdateExposure deletes it when that mode is turned back off
-  # (delete). No get/list/watch: nothing ever reads a companion Service
-  # back — its name is recomputed deterministically from the Instance.
+  # Service: create+patch for companion Services (external exposure
+  # modes, MetricsService), delete on mode-off/Instance delete, list
+  # for the Resource Map feature (same Instance-scoped enumeration as
+  # Secrets above — resolves selector→Pod links for the graph).
   - apiGroups: [""]
     resources: ["services"]
-    verbs: ["create", "patch", "delete"]
+    verbs: ["get", "list", "create", "patch", "delete"]
 
   # MetricsNetworkPolicy (ticket #110): a plain networking.k8s.io/v1
   # NetworkPolicy, additive alongside whatever NetworkPolicy the
