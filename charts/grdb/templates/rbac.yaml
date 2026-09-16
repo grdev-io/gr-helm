@@ -248,6 +248,11 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
+  # Pod logs: the Instance detail Logs tab reads container stdout/
+  # stderr via the pods/log subresource (GetLogs().Stream()).
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
 
   # Redis Engine Adapters' ServiceMonitor companion: applied only when
   # a ClusterCapabilities check confirms this CRD is registered, so
