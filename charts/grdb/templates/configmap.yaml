@@ -78,6 +78,7 @@ data:
   BACKUP_REDIS_RESTORE_IMAGE: {{ .Values.backup.redisRestoreImage | quote }}
   {{- end }}
   BACKUP_SERVICE_ACCOUNT: {{ .Values.backup.serviceAccount | quote }}
+  BACKUP_ROLE_ARN: {{ .Values.backup.roleARN | quote }}
   BACKUP_JOB_TTL_SECONDS: {{ .Values.backup.jobTTLSeconds | quote }}
   {{- if .Values.backup.jobTolerationKey }}
   BACKUP_JOB_TOLERATION_KEY: {{ .Values.backup.jobTolerationKey | quote }}

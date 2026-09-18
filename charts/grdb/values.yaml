@@ -335,7 +335,8 @@ operatorChartVersions:
 # ---------------------------------------------------------------------
 # config/config.go — BACKUP_S3_BUCKET, BACKUP_S3_REGION, BACKUP_S3_PREFIX,
 # BACKUP_REDIS_BACKUP_IMAGE, BACKUP_REDIS_RESTORE_IMAGE,
-# BACKUP_SERVICE_ACCOUNT, BACKUP_JOB_TTL_SECONDS (ADR-0018)
+# BACKUP_SERVICE_ACCOUNT, BACKUP_ROLE_ARN, BACKUP_JOB_TTL_SECONDS
+# (ADR-0018)
 # ---------------------------------------------------------------------
 backup:
   # -- redis Backup/Restore (issue #99, ADR-0018) is entirely opt-in:
@@ -356,6 +357,10 @@ backup:
   # -- Matches config.DefaultBackupServiceAccount; override only if a
   # cluster-wide naming policy forbids the default "redis-backup" name.
   serviceAccount: "redis-backup"
+  # -- IRSA role ARN the redis-backup ServiceAccount is annotated with
+  # at Tenant creation. Empty leaves the SA unannotated (manual
+  # kubectl annotate still works).
+  roleARN: ""
   # -- How long a terminal backup/prune Job survives before Kubernetes
   # garbage-collects it; long enough that BackupUsecase's own lazy
   # finalize reliably observes its terminal state first.
