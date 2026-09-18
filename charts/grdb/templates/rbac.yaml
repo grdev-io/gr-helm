@@ -227,10 +227,12 @@ rules:
     verbs: ["get", "list", "watch", "create", "patch", "delete"]
 
   # Dragonfly Engine Adapter: the dragonfly-operator's Dragonfly custom
-  # resource. Same status-from-StatefulSet shape as redis's rule above.
+  # resource. Status comes from the StatefulSet (StatusSourceWorkload),
+  # not this CR, so no list/watch — but TriggerOperation's Scale/Resize
+  # reads the CR first (get) to build its merge-patch.
   - apiGroups: ["dragonflydb.io"]
     resources: ["dragonflies"]
-    verbs: ["create", "patch", "delete"]
+    verbs: ["get", "create", "patch", "delete"]
 
   # Workload-backed status: some operators (redis, dragonfly) publish no
   # meaningful CR status, so their StatusSource reads the StatefulSet
