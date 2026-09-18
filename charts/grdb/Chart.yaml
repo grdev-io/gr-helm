@@ -10,11 +10,11 @@ description: >-
 type: application
 
 # Chart version (this packaging). Bump on any template/values change.
-version: 0.5.1
+version: 0.6.0
 # appVersion tracks the grdb-v2 release this chart defaults to
 # (image.tag below); update both together when cutting a new grdb-v2
 # release.
-appVersion: "v0.3.2"
+appVersion: "v0.4.26"
 
 keywords:
   - dbaas
