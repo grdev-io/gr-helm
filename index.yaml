@@ -2,6 +2,34 @@ apiVersion: v1
 entries:
   grdb:
   - apiVersion: v2
+    appVersion: v0.4.26
+    created: "2026-09-18T18:35:21.825659234Z"
+    description: BYOC (Bring Your Own Cloud) distribution of the grdb database control
+      plane. Installs the grdb-v2 monolith — the console, its Postgres-backed identity/intent
+      store, and the RBAC it needs to provision managed Postgres, Redis, Dragonfly,
+      MongoDB, ClickHouse, and Elasticsearch Instances via their upstream operators
+      — into a customer-owned Kubernetes cluster.
+    digest: 7753677229b1acf26c983daa88987ab1cd3e689521fa2a28fe193873a9886864
+    home: https://github.com/grdev-io/gr-helm
+    keywords:
+    - dbaas
+    - database
+    - postgres
+    - redis
+    - byoc
+    - kubernetes-operator
+    maintainers:
+    - name: grdev
+      url: https://github.com/grdev-io
+    name: grdb
+    sources:
+    - https://github.com/grdev-io/grdb-v2
+    - https://github.com/grdev-io/gr-helm
+    type: application
+    urls:
+    - https://github.com/grdev-io/gr-helm/releases/download/grdb-0.6.0/grdb-0.6.0.tgz
+    version: 0.6.0
+  - apiVersion: v2
     appVersion: 0.1.0
     created: "2026-09-06T13:43:45.527682191Z"
     description: BYOC (Bring Your Own Cloud) distribution of the grdb database control
@@ -225,4 +253,4 @@ entries:
     urls:
     - https://github.com/grdev-io/gr-helm/releases/download/grdb-0.1.2/grdb-0.1.2.tgz
     version: 0.1.2
-generated: "2026-09-06T13:43:45.527768132Z"
+generated: "2026-09-18T18:35:21.82572106Z"
