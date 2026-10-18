@@ -344,8 +344,10 @@ backup:
   # refuses cleanly rather than launching a Job that can never reach a
   # real destination. The redis-backup ServiceAccount this feature's
   # Jobs/initContainers run as is applied into every Tenant namespace by
-  # the platform itself; its IRSA role ARN is bound out-of-band via
-  # `task platform:aws-bind` (ADR-0018), never a value here.
+  # the platform itself, and annotated with roleARN below when that is
+  # set — which is what `task platform:aws-bind` (ADR-0018) would
+  # otherwise do by hand. Leaving roleARN empty is what makes the manual
+  # step necessary, not a limitation of this chart.
   s3Bucket: ""
   s3Region: ""
   s3Prefix: ""
