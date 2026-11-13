@@ -70,6 +70,15 @@ rules:
     resources: ["persistentvolumeclaims"]
     verbs: ["list", "delete"]
 
+  # ClickHouse Storage resize (grdb-v2 #207): whether the data volume's
+  # StorageClass sets allowVolumeExpansion is read live before a grow is
+  # accepted. Without get the Operation cannot be validated, so it is
+  # refused rather than applied. StorageClass is cluster-scoped, which is
+  # why this lives in the ClusterRole.
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get"]
+
   # redis Backup/Restore's redis-backup ServiceAccount, applied into
   # every Tenant namespace (NamespaceReserver.Reserve, ADR-0018), and
   # dragonfly S3 snapshot's per-Instance dragonfly-<name> ServiceAccount
