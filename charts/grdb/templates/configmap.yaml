@@ -113,6 +113,9 @@ data:
   {{- if .Values.mongodbBackup.roleARN }}
   MONGODB_BACKUP_ROLE_ARN: {{ .Values.mongodbBackup.roleARN | quote }}
   {{- end }}
+  {{- if .Values.mongodbBackup.operatorRoleARN }}
+  MONGODB_OPERATOR_ROLE_ARN: {{ .Values.mongodbBackup.operatorRoleARN | quote }}
+  {{- end }}
   {{- if .Values.elasticBackup.bucket }}
   ELASTIC_BACKUP_BUCKET: {{ .Values.elasticBackup.bucket | quote }}
   {{- end }}

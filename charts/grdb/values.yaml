@@ -429,6 +429,19 @@ mongodbBackup:
   # clickhouseBackup's own comment above.
   bucket: ""
   roleARN: ""
+  # -- operatorRoleARN is MONGODB_OPERATOR_ROLE_ARN: the identity the
+  # psmdb operator's own ServiceAccount assumes, which the platform
+  # renders as that chart's serviceAccount.annotations when it installs
+  # the operator. Needed only for restore: a
+  # PerconaServerMongoDBRestore is validated inside the operator
+  # process, which reads the backup's own metadata object from S3
+  # itself, so without this a restore fails "no EC2 IMDS role found"
+  # on HeadObject while backups keep working (PBM runs in the mongod
+  # Pods, under roleARN above). ADR-0035's own "its own role" rule
+  # applies with extra force here: give this one only s3:GetObject and
+  # s3:ListBucket, since the operator watches every namespace and
+  # never needs to write or delete a Tenant's backups.
+  operatorRoleARN: ""
 
 # ---------------------------------------------------------------------
 # config/config.go — ELASTIC_BACKUP_BUCKET, ELASTIC_BACKUP_ROLE_ARN
