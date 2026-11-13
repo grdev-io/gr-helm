@@ -169,17 +169,24 @@ rules:
     verbs: ["get", "list", "watch", "create", "patch", "delete"]
 
   # MongoDB Engine Adapter's native backup/restore (issue #144,
-  # ADR-0029): the Percona operator's own PerconaServerMongoDBBackup
-  # (Create/List/Get/Delete — a real entity a Tenant lists many of,
-  # never routed through OperationCatalog) and
-  # PerconaServerMongoDBRestore (create+patch only, create-time-only
-  # like every other Engine's own Restore) custom resources.
+  # ADR-0029, ADR-0044): the Percona operator's own
+  # PerconaServerMongoDBBackup (Create/List/Get/Delete — a real entity
+  # a Tenant lists many of, never routed through OperationCatalog) and
+  # PerconaServerMongoDBRestore custom resources.
+  #
+  # The restore needs get and delete on top of create/patch, not just
+  # create-time writes: the operator releases its own wait before PBM
+  # publishes status.backupVersion, so a restore applied during Create
+  # can fail terminally, and ADR-0044 has the read path observe that
+  # state and re-apply once. Without get, that reconcile fails
+  # Forbidden and is silently skipped — found live on ddb-eks, where a
+  # finished restore never cleared its own pending request.
   - apiGroups: ["psmdb.percona.com"]
     resources: ["perconaservermongodbbackups"]
     verbs: ["get", "list", "create", "patch", "delete"]
   - apiGroups: ["psmdb.percona.com"]
     resources: ["perconaservermongodbrestores"]
-    verbs: ["create", "patch"]
+    verbs: ["get", "list", "create", "patch", "delete"]
 
   # ClickHouse Engine Adapter: the Altinity operator's
   # ClickHouseInstallation custom resource.
