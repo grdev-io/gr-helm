@@ -198,6 +198,26 @@ rules:
     resources: ["certificates"]
     verbs: ["get", "create", "patch", "delete"]
 
+  # ScyllaDB Engine Adapter (grdb-v2 ADR-0042): scylla-operator's
+  # ScyllaCluster custom resource, same shape as the rules above.
+  - apiGroups: ["scylla.scylladb.com"]
+    resources: ["scyllaclusters"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+  # The create-time production-prerequisite check reads NodeConfigs to
+  # find an Available one selecting the Compute Profile's nodes. Read
+  # only: the NodeConfig is grdb-gitops' (components/scylla-node-tuning).
+  - apiGroups: ["scylla.scylladb.com"]
+    resources: ["nodeconfigs"]
+    verbs: ["get", "list"]
+  # Each ScyllaDB Instance's platform-managed scylla.yaml ConfigMap:
+  # applied before the ScyllaCluster references it, patched by Update
+  # configuration, deleted with the Instance. No list: the platform only
+  # ever addresses its own ConfigMap by name. Distinct from the
+  # marker Role below, which is a read before anything is written.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "create", "patch", "delete"]
+
   # ClickHouse Engine Adapter: the Altinity operator's
   # ClickHouseInstallation custom resource.
   - apiGroups: ["clickhouse.altinity.com"]
