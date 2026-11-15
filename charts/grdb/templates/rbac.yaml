@@ -188,6 +188,16 @@ rules:
     resources: ["perconaservermongodbrestores"]
     verbs: ["get", "list", "create", "patch", "delete"]
 
+  # MongoDB connection certificates (grdb-v2 ADR-0046 amendment): a
+  # Tenant's client certificate is a cert-manager Certificate the
+  # platform requests per Instance from PSMDB's own Issuer, never the
+  # operator's <name>-ssl certificate, whose subject matches the
+  # cluster members' and authenticates as __system under
+  # clusterAuthMode=x509. delete runs with the Instance's own delete.
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates"]
+    verbs: ["get", "create", "patch", "delete"]
+
   # ClickHouse Engine Adapter: the Altinity operator's
   # ClickHouseInstallation custom resource.
   - apiGroups: ["clickhouse.altinity.com"]
