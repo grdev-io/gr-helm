@@ -218,6 +218,18 @@ rules:
     resources: ["configmaps"]
     verbs: ["get", "create", "patch", "delete"]
 
+  # OceanBase Engine Adapter (grdb-v2 ADR-0041): the OBCluster primary
+  # and the OBTenant companion the read path creates once the cluster
+  # runs (and deletes/re-creates after a failure, bounded), both
+  # watched for the two-object status. Restart is one
+  # OBClusterOperation request per call, applied under a fresh name.
+  - apiGroups: ["oceanbase.oceanbase.com"]
+    resources: ["obclusters", "obtenants"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+  - apiGroups: ["oceanbase.oceanbase.com"]
+    resources: ["obclusteroperations"]
+    verbs: ["create", "patch"]
+
   # ClickHouse Engine Adapter: the Altinity operator's
   # ClickHouseInstallation custom resource.
   - apiGroups: ["clickhouse.altinity.com"]
