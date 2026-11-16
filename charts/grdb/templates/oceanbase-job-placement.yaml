@@ -1,0 +1,134 @@
+{{- if and .Values.oceanbase.jobPlacement.enabled (.Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1/MutatingAdmissionPolicy") }}
+# OceanBase helper-Job placement (grdb-v2 ADR-0041, second amendment).
+#
+# ob-operator 2.3.4 runs short-lived helper Jobs for an OBCluster —
+# image-pull-ready-*, <cluster>-check-fs-*, <cluster>-get-version-*,
+# optimize-cluster-<cluster>-*, optimize-tenant-<tenant>-*,
+# <cluster>-upgrade-validate-* and the upgrade's script-runner-* — and
+# builds every one of them with no nodeSelector and no tolerations
+# (internal/resource/utils/jobs.go RunJob/ExecuteUpgradeScript,
+# obcluster_task.go CheckImageReady). On a cluster whose every node is
+# tainted their Pods never schedule: first start waits out four
+# 300-second timeouts, a Version change never finishes (the upgrade
+# check waits 7200 s and then pauses the cluster), and the Jobs that
+# carry no ownerReference outlive the Instance.
+#
+# This policy gives each such Job, at CREATE, the placement of the
+# OBCluster it belongs to — spec.topology[0].nodeSelector and
+# .tolerations, exactly what the platform's Engine Adapter pins onto
+# every zone (Compute Profile, plus any disk-profile pair) — and, when
+# it has none, an ownerReference to that OBCluster, so it is garbage
+# collected with the Instance like ob-operator's own image-pull-ready
+# and script-runner Jobs already are.
+#
+# Scope, narrowest first:
+#   - only Job CREATE requests (matchConstraints);
+#   - only in Tenant namespaces (the binding's namespaceSelector: the
+#     label the platform puts on every namespace it reserves);
+#   - only requests made by ob-operator's own ServiceAccount
+#     (matchConditions) — a Job anyone else creates is never touched;
+#   - one evaluation per OBCluster in the Job's namespace (paramRef
+#     selector {}, namespace left empty), and a Job is mutated only for
+#     the cluster it belongs to: owned by that cluster's UID, or named
+#     by one of ob-operator's per-cluster Job name shapes. Two Instances
+#     in one namespace on different Compute Profiles each get their own
+#     placement, and no per-Instance object exists to create or forget.
+#
+# failurePolicy Ignore: a policy error must never stop ob-operator from
+# creating a Job (that would fail the cluster's task flow); it falls back
+# to the unplaced Job ob-operator would have created anyway.
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: {{ include "grdb.fullname" . }}-oceanbase-job-placement
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+spec:
+  paramKind:
+    apiVersion: oceanbase.oceanbase.com/v1alpha1
+    kind: OBCluster
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        resources: ["jobs"]
+        operations: ["CREATE"]
+  failurePolicy: Ignore
+  reinvocationPolicy: Never
+  matchConditions:
+    - name: created-by-ob-operator
+      expression: >-
+        request.userInfo.username == "system:serviceaccount:{{ .Values.oceanbase.jobPlacement.operatorNamespace }}:{{ .Values.oceanbase.jobPlacement.operatorServiceAccount }}"
+    # The Job belongs to params, this evaluation's OBCluster: owned by it
+    # (image-pull-ready-*, script-runner-*), or one of RunJob's names,
+    # "<name>-<rand6>" over the per-cluster prefixes ob-operator 2.3.4
+    # uses (rand6 is apimachinery's rand.String(6)). The tenant's
+    # optimize Job is named after the OBTenant, which the platform names
+    # after its OBCluster. CheckMigration's "<cluster>-version-*" is left
+    # out: the platform never migrates a cluster, and that shape would
+    # also match the "-get-version-" Job of a cluster named "<x>-get".
+    - name: job-of-this-cluster
+      expression: >-
+        object.metadata.?ownerReferences.orValue([]).exists(r, r.kind == "OBCluster" && r.uid == params.metadata.uid) ||
+        object.metadata.name.matches("^" + params.metadata.name + "-(check-fs-[a-z0-9]{6}-|get-version-|service-validate-|standalone-validate-|upgrade-validate-)[a-z0-9]{6}$") ||
+        object.metadata.name.matches("^optimize-(cluster|tenant)-" + params.metadata.name + "-[a-z0-9]{6}-[a-z0-9]{6}$")
+    - name: cluster-has-a-zone
+      expression: has(params.spec.topology) && size(params.spec.topology) > 0
+  variables:
+    # Every zone of a platform-built OBCluster carries the same
+    # placement (the Engine Adapter's Pin), so the first one is it.
+    - name: zone
+      expression: params.spec.topology[0]
+    - name: owned
+      expression: >-
+        object.metadata.?ownerReferences.orValue([]).exists(r, r.uid == params.metadata.uid)
+  mutations:
+    # JSONPatch, not ApplyConfiguration: nodeSelector and tolerations
+    # are an atomic map and an atomic list in the Pod spec, which an
+    # apply configuration may not set. "add" replaces the member when it
+    # exists; ob-operator sets neither on these Jobs.
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: >-
+          (has(variables.zone.nodeSelector) ? [
+            JSONPatch{op: "add", path: "/spec/template/spec/nodeSelector", value: variables.zone.nodeSelector}
+          ] : []) +
+          (has(variables.zone.tolerations) ? [
+            JSONPatch{op: "add", path: "/spec/template/spec/tolerations", value: variables.zone.tolerations.map(t,
+              Object.spec.template.spec.tolerations{
+                ?key: t.?key,
+                ?operator: t.?operator,
+                ?value: t.?value,
+                ?effect: t.?effect,
+                ?tolerationSeconds: t.?tolerationSeconds
+              })}
+          ] : []) +
+          (variables.owned ? [] : [
+            has(object.metadata.ownerReferences) ?
+              JSONPatch{op: "add", path: "/metadata/ownerReferences/-", value: Object.metadata.ownerReferences{
+                apiVersion: "oceanbase.oceanbase.com/v1alpha1", kind: "OBCluster", name: params.metadata.name, uid: params.metadata.uid
+              }} :
+              JSONPatch{op: "add", path: "/metadata/ownerReferences", value: [Object.metadata.ownerReferences{
+                apiVersion: "oceanbase.oceanbase.com/v1alpha1", kind: "OBCluster", name: params.metadata.name, uid: params.metadata.uid
+              }]}
+          ])
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: {{ include "grdb.fullname" . }}-oceanbase-job-placement
+  labels:
+    {{- include "grdb.labels" . | nindent 4 }}
+spec:
+  policyName: {{ include "grdb.fullname" . }}-oceanbase-job-placement
+  # Every OBCluster in the Job's own namespace is a candidate param; the
+  # policy's matchConditions pick the one the Job belongs to. No
+  # OBCluster there means nothing to place: Allow, not an error.
+  paramRef:
+    selector: {}
+    parameterNotFoundAction: Allow
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        app.kubernetes.io/managed-by: grdb-platform
+{{- end }}

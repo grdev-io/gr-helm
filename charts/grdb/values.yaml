@@ -102,6 +102,28 @@ platformMarker:
   # different target cluster (KUBECONFIG_PATH/CLUSTER_CONTEXT below).
   create: true
 
+oceanbase:
+  jobPlacement:
+    # -- Installs a MutatingAdmissionPolicy and its binding
+    # (templates/oceanbase-job-placement.yaml) that give ob-operator's
+    # helper Jobs the nodeSelector and tolerations of the OBCluster they
+    # belong to, and an ownerReference to it. Without it, on a cluster
+    # whose every node is tainted those Jobs never schedule: a new
+    # OceanBase Instance waits out four 300-second timeouts, a Version
+    # change never completes, and the Jobs outlive the Instance
+    # (grdb-v2 ADR-0041). Rendered only where the API server serves
+    # admissionregistration.k8s.io/v1 MutatingAdmissionPolicy
+    # (Kubernetes 1.36+); elsewhere it is skipped and the install notes
+    # say so. Touches only Jobs ob-operator's ServiceAccount creates in
+    # Tenant namespaces.
+    enabled: true
+    # -- ob-operator's controller identity: the namespace and
+    # ServiceAccount the platform's own operator install runs it as
+    # (upstream config/default, namePrefix "oceanbase-"). Change only if
+    # ob-operator runs elsewhere.
+    operatorNamespace: oceanbase-system
+    operatorServiceAccount: oceanbase-controller-manager
+
 service:
   type: ClusterIP
   port: 80

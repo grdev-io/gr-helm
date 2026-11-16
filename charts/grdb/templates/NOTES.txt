@@ -42,6 +42,16 @@ refused until that ConfigMap exists there. Either:
    one of these two values and upgrade.
 {{- end }}
 
+{{- if and .Values.oceanbase.jobPlacement.enabled (not (.Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1/MutatingAdmissionPolicy")) }}
+
+⚠️  OceanBase: this cluster does not serve
+admissionregistration.k8s.io/v1 MutatingAdmissionPolicy (Kubernetes
+1.36+), so the policy that places ob-operator's helper Jobs was not
+installed. On a cluster whose every node is tainted those Jobs never
+schedule: a new OceanBase Instance takes about 25 minutes to start, a
+Version change never completes, and the Jobs outlive the Instance.
+{{- end }}
+
 Docs: https://github.com/grdev-io/gr-helm#readme
 Found an install problem? File it at https://github.com/grdev-io/gr-helm/issues
 (this chart's own public tracker — separate from grdb-v2's internal one).

@@ -107,6 +107,16 @@ A few notable ones:
   that doesn't exist fails the install, so `argocdIntegration` defaults
   off and `karpenterIntegration`, targeting the always-present
   `kube-system`, defaults on).
+- **`oceanbase.jobPlacement.enabled`** — on by default. Installs a
+  cluster-scoped `MutatingAdmissionPolicy` and binding that give the
+  helper Jobs ob-operator creates in Tenant namespaces the `nodeSelector`
+  and tolerations of their `OBCluster`, plus an ownerReference to it, so
+  they schedule on a fully tainted cluster and are deleted with the
+  Instance. It touches only Jobs created by ob-operator's ServiceAccount
+  (`operatorNamespace`/`operatorServiceAccount`). Rendered only where the
+  API server serves `admissionregistration.k8s.io/v1`
+  `MutatingAdmissionPolicy` (Kubernetes 1.36+); the install notes warn
+  when it is skipped.
 - **Image architecture** — the published image is built `linux/arm64` by
   default; the Go binary itself is plain `CGO_ENABLED=0`, so
   `linux/amd64` works fine too if you build/push that arch yourself.

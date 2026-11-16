@@ -229,6 +229,16 @@ rules:
   - apiGroups: ["oceanbase.oceanbase.com"]
     resources: ["obclusteroperations"]
     verbs: ["create", "patch"]
+  # OceanBase per-server readiness (grdb-v2 ADR-0041, second
+  # amendment): through a Restart or a Scale ob-operator keeps the
+  # OBCluster and its zones running and marks only the OBServers, so the
+  # status join watches them cluster-wide like the CRs above. Read only:
+  # ob-operator creates and deletes every OBServer itself. Without it the
+  # Instance's ready count falls back to the zones and a restart reads
+  # Ready.
+  - apiGroups: ["oceanbase.oceanbase.com"]
+    resources: ["observers"]
+    verbs: ["get", "list", "watch"]
 
   # ClickHouse Engine Adapter: the Altinity operator's
   # ClickHouseInstallation custom resource.
