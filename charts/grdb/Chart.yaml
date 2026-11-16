@@ -10,8 +10,8 @@ description: >-
 type: application
 
 # Chart version (this packaging). Bump on any template/values change.
-version: 0.8.1
-appVersion: "v0.5.1"
+version: 0.8.2
+appVersion: "v0.5.2"
 
 keywords:
   - dbaas
